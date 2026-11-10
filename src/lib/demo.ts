@@ -68,6 +68,6 @@ export function buildDemoState(today: string, timezone: string): AppState {
     version: 2,
     habits,
     events,
-    settings: { timezone, mapOrder: "attention", defaultView: "map", onboarded: true, name: "Matthijs" },
+    settings: { timezone, mapOrder: "attention", defaultView: "plants", onboarded: true, name: "Matthijs" },
   };
 }

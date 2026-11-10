@@ -18,6 +18,6 @@ export function emptyState(timezone: string): AppState {
     version: 2,
     habits: [],
     events: [],
-    settings: { timezone, mapOrder: "attention", defaultView: "map", onboarded: false },
+    settings: { timezone, mapOrder: "attention", defaultView: "plants", onboarded: false },
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import type { Category, Habit, HabitEvent, Importance, PlantKind } from "@/lib/types";
 import { HabitBench, PLANT_LABELS, SpeciesPlant, plantLine } from "./greenhouse/HabitPlants";
@@ -13,6 +13,7 @@ import { currentGoal, DIRECTION_LABEL, goalSentence, SOURCE_LABEL } from "@/lib/
 import { addDays, formatDate, instantFor, relativeDay } from "@/lib/dates";
 import { proposeGoals } from "@/lib/parser/rules";
 import { attainment, collectionFor, formatPercent, weekRatio } from "@/lib/garden";
+import { currentPercent, formatCurrent } from "@/lib/current";
 
 /** Goal attainment: weeks capped at their goal, averaged over every tracked week. */
 export function useAttainment(habit: Habit) {
@@ -52,6 +53,7 @@ export function HabitSummary({ habit, onClose, showBench = true }: { habit: Habi
   const c = app.conditions[habit.id];
   const g = currentGoal(habit);
   const att = useAttainment(habit);
+  const cur = currentPercent(habit, c);
   return (
     <div>
       {showBench && (
@@ -76,8 +78,16 @@ export function HabitSummary({ habit, onClose, showBench = true }: { habit: Habi
           <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Goal</dt>
           <dd>{goalSentence(habit.type, g, habit.direction)}</dd>
         </div>
+        {cur.ratio !== null && (
+          <div>
+            <dt className="text-[11px] uppercase tracking-wider text-muted-strong">This window</dt>
+            <dd>
+              {formatCurrent(cur)} of your {cur.kind === "limit" ? "limit used" : "target"} in the past {c.windowDays} days
+            </dd>
+          </div>
+        )}
         <div>
-          <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Goal attainment</dt>
+          <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Goal attainment (long term)</dt>
           <dd>{attainmentSentence(habit, att)}</dd>
         </div>
         <div>
@@ -472,6 +482,29 @@ export function HabitDetail({ habit }: { habit: Habit }) {
           </button>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Bottom sheet with a habit's summary (Plants and Greenhouse views). */
+export function HabitSheet({ habit, onClose }: { habit: Habit; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      prev?.focus?.();
+    };
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-40 flex items-end bg-forest/25" onClick={onClose}>
+      <div ref={ref} tabIndex={-1} className="sheet pb-safe mx-auto max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-[2rem] bg-ivory p-5 pb-8 shadow-2xl outline-none" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={habit.name}>
+        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-forest/15" />
+        <HabitSummary habit={habit} onClose={onClose} showBench />
+      </div>
     </div>
   );
 }

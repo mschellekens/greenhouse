@@ -438,6 +438,7 @@ export interface PottedPlantProps {
   paused?: boolean;
   /** painted on the pot, e.g. goal attainment "67%" */
   label?: string;
+  labelSize?: number;
 }
 
 const SPILL: Partial<Record<Species, [string, string]>> = {
@@ -452,7 +453,7 @@ const SPILL: Partial<Record<Species, [string, string]>> = {
 };
 const BROWNS = ["#A27B47", "#B08B55", "#8E6A3E", "#B99A62"];
 
-export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, potH = 30, sway = true, grow = false, label }: PottedPlantProps) {
+export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, potH = 30, sway = true, grow = false, label, labelSize }: PottedPlantProps) {
   // health is vitality: 0 = very sad, 1 = big and lush (continuous with the score)
   const v = Math.max(0, Math.min(1, health));
   const h = v;
@@ -561,7 +562,7 @@ export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, p
           x={0}
           y={potH * 0.62}
           textAnchor="middle"
-          fontSize={Math.min(12, potW * 0.3)}
+          fontSize={labelSize ?? Math.min(12, potW * 0.3)}
           fill={pot.body === "#EDE5D3" || pot.body === "#D9AF69" ? "#23382F" : "#FBF3E4"}
           opacity={0.92}
           style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", letterSpacing: "0.02em" }}

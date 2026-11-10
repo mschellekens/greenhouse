@@ -12,6 +12,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const path = usePathname();
   const wide = path?.includes("/garden");
+  const mid = path?.includes("/plants") || path?.includes("/map");
   useEffect(() => {
     if (ready && !state.settings.onboarded) router.replace("/welcome");
   }, [ready, state.settings.onboarded, router]);
@@ -22,7 +23,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </main>
     );
   return (
-    <div className={`mx-auto min-h-dvh max-w-md ${wide ? "md:max-w-5xl" : ""}`}>
+    <div className={`mx-auto min-h-dvh max-w-md ${wide ? "md:max-w-5xl" : mid ? "md:max-w-3xl" : ""}`}>
       <main className="px-4 pb-44 pt-6">{children}</main>
       <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="px-3">

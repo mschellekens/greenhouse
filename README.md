@@ -8,7 +8,11 @@ Habits that grow like plants. Tell it what you did in plain words; each habit ge
 
 1. **Start.** Open the link on your phone. *Create your greenhouse* plays three short intro screens (balance, rhythm, care), then asks what you want to grow in your own words ("lift weights 3 times a week, read more, drink less"). It proposes habits, asks a follow-up only when a number is missing, and you confirm. *Explore an example greenhouse* loads a year of demo history instead. You can replay the intro any time: Settings → *How Greenhouse works*.
 2. **Log.** Tap the button on a tile or bench sheet for one-tap logging (with undo), or type or dictate into *Tell Greenhouse what you did* ("ran 5k yesterday", "2 glasses of wine last night"). You always confirm before anything is saved.
-3. **Look.** *Map* ranks what needs attention. *Garden* is the greenhouse: drag to look around, pinch or use +/− to zoom, tap a bench for its detail. The number painted on the front pot is goal attainment. *History* lists every entry (editable), condition changes and new plants.
+3. **Look.** Home has three views (Plants · Map · Greenhouse); the last one you picked is remembered in this browser, Plants for new users.
+   - **Plants** (now): one big plant per habit in a 2-column grid. Its size and lushness or droop follow the current condition. The pot shows how you're doing against target in the current scoring window, uncapped (4 of 3 sessions = 133%, 90 of 150 min = 60%; for limits, the share of the allowance used), with a small up/down cue for the week's trend. Tap for details.
+   - **Map** (trending): what could use attention first, with current % of target and trend per habit; also Custom and Category order.
+   - **Greenhouse** (over time): the walk-in greenhouse. Every goal-week earned adds a plant; drag, pinch or +/− to look around, tap a bench. The front pot shows long-term goal attainment (capped per week).
+   *History* lists every entry (editable), condition changes and new plants.
 4. **Tend.** Pause a habit for travel or injury (paused days never count against you), change its goal in plain words, archive it (keeps history) or delete it.
 
 ### Install it on your home screen (works offline)
@@ -75,7 +79,7 @@ node scripts/icons.mjs # re-render PWA icons (any, maskable, apple-touch) from p
 | App state + actions (undo, soft delete) | `src/lib/store.tsx` |
 | Attention ranking, band labels, next-action copy | `src/lib/attention.ts` |
 | Example greenhouse (spec §13 journey) | `src/lib/demo.ts`, tests in `demo.test.ts` |
-| Screens | `src/app/intro`, `src/app/welcome` (onboarding 1-6), `src/app/(main)/{map,garden,habit,history,settings}`; every species and state at `/plants` |
+| Screens | `src/app/intro`, `src/app/welcome` (onboarding 1-6), `src/app/(main)/{map,garden,habit,history,settings}`; every species and state at `/plant-states` |
 
 ### Brand
 Palette from the spec: ivory `#F7F6F0`, forest `#23382F`, sage `#829985`, leaf `#5E9070`, ochre `#D9AF69`, terracotta `#C97862`, stone `#ECEDE5`, gray `#788077` (Tailwind tokens in `tailwind.config.ts`). Small text uses slightly darker "ink" variants of gray/sage/ochre/terracotta so it meets WCAG AA contrast on ivory. Type: Instrument Serif (display) + Inter.

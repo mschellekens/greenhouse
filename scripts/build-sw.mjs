@@ -14,7 +14,7 @@ const files = [];
   }
 })(OUT);
 
-const skip = (rel) => rel === "sw.js" || rel.endsWith(".map") || rel.startsWith("404") || rel === "plants/index.html" || rel === "plants/index.txt";
+const skip = (rel) => rel === "sw.js" || rel.endsWith(".map") || rel.startsWith("404") || rel.startsWith("plant-states/");
 const hash = createHash("sha256");
 const urls = [`${BASE}/`];
 for (const p of files.sort()) {

@@ -1,10 +1,9 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
-import { HabitSummary } from "@/components/HabitDetail";
+import { HabitSheet } from "@/components/HabitDetail";
 import { BAND_LABEL } from "@/lib/attention";
-import { greeting } from "@/lib/format";
-import { ViewToggle } from "@/components/Nav";
+import { HomeHeader } from "@/components/Nav";
 import { GreenhouseInterior, SignLayer, signSpecs, SCENE_W, SCENE_H, type SignSpec, type Zone } from "@/components/greenhouse/Interior";
 import { PanZoom } from "@/components/greenhouse/PanZoom";
 import { attainment, collectionFor, formatPercent, joinedMessage, newPlantsSince, shelfCaption, vitalityFor } from "@/lib/garden";
@@ -83,22 +82,12 @@ export default function GardenPage() {
     return () => clearTimeout(t);
   }, [banner]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenId(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  const closeSheet = useCallback(() => setOpenId(null), []);
 
 
   return (
     <div>
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="whitespace-nowrap font-display text-[38px] leading-[1.05] text-forest">{greeting(app.state.settings.timezone)}</h1>
-          <p className="mt-1 text-[15px] text-muted-strong">Every goal-week adds a plant to your greenhouse.</p>
-        </div>
-        <ViewToggle current="garden" />
-      </header>
+      <HomeHeader current="garden" />
 
       {banner && (
         <div role="status" className="rise mb-3 flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-[14px] text-ivory shadow-lg">
@@ -157,18 +146,12 @@ export default function GardenPage() {
           <li>Each habit has its own bench. Every week (Monday to Sunday) you meet its goal, a new potted plant joins it, filling from the front toward the back. This week counts as soon as you get there.</li>
           <li>Plants grow from seedling to young, mature and flourishing as the weeks pass, faster when you keep meeting the goal.</li>
           <li>How they look follows how the habit is doing right now: big, lush and spilling over when it thrives; small, brown and dropping leaves when it struggles. Earned plants always stay, and they recover as soon as you pick the habit back up.</li>
-          <li>The number painted on the front pot is goal attainment: each week counts up to its goal (overshooting one week doesn’t make up for another), averaged over every week you’ve tracked.</li>
+          <li>This is the long view. For how each habit is doing this week, switch to Plants; for what needs attention now, switch to Map.</li>
+          <li>The number painted on the front pot is long-term goal attainment: each week counts up to its goal (overshooting one week doesn’t make up for another), averaged over every week you’ve tracked.</li>
         </ul>
       </details>
 
-      {open && (
-        <div className="fixed inset-0 z-40 flex items-end bg-forest/25" onClick={() => setOpenId(null)}>
-          <div className="sheet pb-safe mx-auto max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-[2rem] bg-ivory p-5 pb-8 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={open.name}>
-            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-forest/15" />
-            <HabitSummary habit={open} onClose={() => setOpenId(null)} showBench />
-          </div>
-        </div>
-      )}
+      {open && <HabitSheet habit={open} onClose={closeSheet} />}
     </div>
   );
 }

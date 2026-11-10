@@ -29,6 +29,8 @@ export interface Ranked {
   habit: Habit;
   condition: Condition;
   attention: number;
+  /** condition score 7 days ago, when the habit existed then */
+  weekAgo: number | null;
 }
 
 /**
@@ -60,7 +62,7 @@ export function rankByAttention(habits: Habit[], events: HabitEvent[], today: st
     .map((h) => {
       const c = conditions[h.id] ?? computeCondition(h, events, today);
       const prev = h.startDate <= weekAgo ? computeCondition(h, events, weekAgo).score : null;
-      return { habit: h, condition: c, attention: attentionScore(h, c, prev) };
+      return { habit: h, condition: c, attention: attentionScore(h, c, prev), weekAgo: prev };
     })
     .sort((a, b) => b.attention - a.attention);
 }

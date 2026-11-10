@@ -75,7 +75,7 @@ export interface HabitEvent {
 export interface Settings {
   timezone: string;
   mapOrder: "attention" | "custom" | "category";
-  defaultView: "map" | "garden";
+  defaultView: "plants" | "map" | "garden";
   onboarded: boolean;
   name?: string;
   habitCountGoal?: number;

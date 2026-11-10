@@ -3,12 +3,13 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { Mark } from "@/components/Brand";
+import { loadView, viewPath } from "@/lib/view";
 
 export default function Home() {
   const { ready, state } = useApp();
   const router = useRouter();
   useEffect(() => {
-    if (ready) router.replace(state.settings.onboarded ? `/${state.settings.defaultView}` : "/welcome");
+    if (ready) router.replace(state.settings.onboarded ? viewPath(loadView(state.settings.defaultView)) : "/welcome");
   }, [ready, state.settings.onboarded, state.settings.defaultView, router]);
   return (
     <main className="flex min-h-dvh items-center justify-center">

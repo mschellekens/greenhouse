@@ -33,7 +33,8 @@ async function seeded(opts) {
   await page.waitForTimeout(600);
   await shot(page, "phone-welcome");
   await page.getByRole("button", { name: "Explore an example greenhouse" }).click();
-  await page.waitForURL("**/map/");
+  await page.waitForURL("**/plants/");
+  await page.goto(`${BASE}/map/`);
   await page.waitForTimeout(800);
   await shot(page, "phone-map");
 
@@ -124,8 +125,9 @@ async function seeded(opts) {
   const { ctx, page } = await seeded(phone);
   await page.waitForTimeout(500);
   await page.locator("input[type=file]").setInputFiles(`/tmp/${PREFIX}-backup.json`);
-  await page.waitForURL("**/map/", { timeout: 8000 }).catch(() => {});
-  const tiles = await page.locator("main li a[href*='habit']").count();
+  await page.waitForURL("**/plants/", { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const tiles = await page.locator("main ul > li").count();
   check("restore backup on a fresh device", tiles === 6, `${tiles} tiles`);
   await page.goto(`${BASE}/settings/`);
   await page.waitForTimeout(500);
@@ -165,7 +167,7 @@ async function seeded(opts) {
   await shot(page, "phone-onboarding-view");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Start with manual logging" }).click();
-  await page.waitForURL("**/map/");
+  await page.waitForURL("**/plants/");
   await page.goto(`${BASE}/garden/`);
   await page.waitForTimeout(1200);
   await shot(page, "phone-garden-new");
@@ -183,7 +185,8 @@ async function seeded(opts) {
 {
   const { ctx, page } = await seeded(desktop);
   await page.getByRole("button", { name: "Explore an example greenhouse" }).click();
-  await page.waitForURL("**/map/");
+  await page.waitForURL("**/plants/");
+  await page.goto(`${BASE}/map/`);
   await page.waitForTimeout(600);
   await shot(page, "desktop-map");
   await page.goto(`${BASE}/garden/`);

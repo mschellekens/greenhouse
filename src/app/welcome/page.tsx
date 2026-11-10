@@ -11,6 +11,7 @@ import { DIRECTION_LABEL, goalSentence } from "@/lib/format";
 import { scoreTint } from "@/lib/scoring";
 import { INTEGRATIONS } from "@/lib/integrations";
 import { parseBackup } from "@/lib/backup";
+import { loadView, saveView, viewPath, type HomeView } from "@/lib/view";
 import type { Category, Direction, PlantKind } from "@/lib/types";
 
 const EXAMPLE = "I want to lift weights three times a week, do cardio twice, read more, and drink less alcohol.";
@@ -50,7 +51,7 @@ function Onboarding() {
   const [text, setText] = useState("");
   const [custom, setCustom] = useState("");
   const [proposals, setProposals] = useState<ProposedHabit[]>([]);
-  const [view, setView] = useState<"map" | "garden">(app.state.settings.defaultView);
+  const [view, setView] = useState<HomeView>("plants");
   const [busy, setBusy] = useState(false);
   const [seq, setSeq] = useState(0);
 
@@ -76,8 +77,9 @@ function Onboarding() {
   const question = combinedQuestion(proposals);
 
   function finish() {
-    app.plantHabits(proposals, { defaultView: view, habitCountGoal: count });
-    router.push(`/${addingMore ? app.state.settings.defaultView : view}`);
+    app.plantHabits(proposals, addingMore ? { habitCountGoal: count } : { defaultView: view, habitCountGoal: count });
+    if (!addingMore) saveView(view);
+    router.push(viewPath(addingMore ? loadView(app.state.settings.defaultView) : view));
   }
 
   function setDirection(p: ProposedHabit, d: Direction): ProposedHabit {
@@ -107,7 +109,7 @@ function Onboarding() {
               className="h-12 w-full rounded-full text-[15px] text-forest"
               onClick={() => {
                 app.loadDemo();
-                router.push("/map");
+                router.push(viewPath(loadView()));
               }}
             >
               Explore an example greenhouse
@@ -127,7 +129,7 @@ function Onboarding() {
                     return;
                   }
                   app.importState(r.state);
-                  router.push(r.state.settings.defaultView === "garden" ? "/garden" : "/map");
+                  router.push(viewPath(loadView(r.state.settings.defaultView)));
                 }}
               />
             </label>
@@ -276,7 +278,7 @@ function Onboarding() {
               Confirm habits
             </Primary>
             {addingMore && (
-              <button className="w-full py-2 text-sm text-muted-strong" onClick={() => router.push(`/${app.state.settings.defaultView}`)}>
+              <button className="w-full py-2 text-sm text-muted-strong" onClick={() => router.push(viewPath(loadView(app.state.settings.defaultView)))}>
                 Cancel
               </button>
             )}
@@ -401,27 +403,43 @@ function Onboarding() {
 
       {step === 5 && (
         <section className="rise flex flex-1 flex-col">
-          <h1 className="font-display text-[40px] leading-[1.05] text-forest">How would you like to see it?</h1>
-          <p className="mt-2 text-[14px] text-muted-strong">Both show the same habits and the same condition. Switch between them any time.</p>
-          <div className="mt-6 space-y-3">
-            <button onClick={() => setView("map")} aria-pressed={view === "map"} className={`w-full rounded-3xl border p-4 text-left ${view === "map" ? "border-forest bg-white" : "border-forest/10 bg-white/60"}`}>
-              <div className="grid grid-cols-3 gap-1.5" aria-hidden>
-                {[92, 50, 84, 30, 70, 88].map((s, i) => (
-                  <div key={i} className="h-10 rounded-xl" style={{ background: scoreTint(s, 0.45) }} />
-                ))}
-              </div>
-              <h2 className="mt-3 font-display text-[24px] text-forest">The Map</h2>
-              <p className="text-[13px] text-muted-strong">A structured overview of colored tiles, highlighting what needs attention.</p>
-            </button>
-            <button onClick={() => setView("garden")} aria-pressed={view === "garden"} className={`w-full rounded-3xl border p-4 text-left ${view === "garden" ? "border-forest bg-white" : "border-forest/10 bg-white/60"}`}>
-              <div className="glasshouse flex justify-around rounded-2xl" aria-hidden>
-                <SpeciesPlant kind="olive" score={95} band="thriving" id="v1" size={64} />
-                <SpeciesPlant kind="fern" score={30} band="needs-attention" id="v2" size={64} potIndex={3} />
-                <SpeciesPlant kind="ivy" score={75} band="doing-well" id="v3" size={64} potIndex={5} />
-              </div>
-              <h2 className="mt-3 font-display text-[24px] text-forest">The Garden</h2>
-              <p className="text-[13px] text-muted-strong">A walk-in greenhouse. Each habit has a bench, and every week you reach its goal adds a plant that keeps growing.</p>
-            </button>
+          <h1 className="font-display text-[40px] leading-[1.05] text-forest">Where would you like to start?</h1>
+          <p className="mt-2 text-[14px] text-muted-strong">Three views of the same habits. Switch between them any time from Home.</p>
+          <div className="mt-5 space-y-2.5" role="radiogroup" aria-label="Start view">
+            {(
+              [
+                ["plants", "Plants", "Each habit as one plant, right now. The pot shows how you’re doing against your target this window."],
+                ["map", "Map", "Where you’re trending and what could use your attention first."],
+                ["garden", "Greenhouse", "The long view. Every week you reach a goal adds a plant that keeps growing."],
+              ] as const
+            ).map(([id, title, body]) => (
+              <button key={id} role="radio" aria-checked={view === id} onClick={() => setView(id)} className={`flex w-full items-center gap-3 rounded-3xl border p-3 text-left ${view === id ? "border-forest bg-white" : "border-forest/10 bg-white/60"}`}>
+                <div className="flex h-[76px] w-[92px] shrink-0 items-end justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#EEF2E8] to-[#F8F4EA]" aria-hidden>
+                  {id === "plants" ? (
+                    <>
+                      <SpeciesPlant kind="olive" score={95} band="thriving" id="v1" size={46} label="120%" />
+                      <SpeciesPlant kind="fern" score={25} band="needs-attention" id="v2" size={46} potIndex={2} label="40%" />
+                    </>
+                  ) : id === "map" ? (
+                    <div className="grid w-full grid-cols-2 gap-1 self-center p-2">
+                      {[30, 92, 55, 84].map((sc, i) => (
+                        <div key={i} className="h-6 rounded-lg" style={{ background: scoreTint(sc, 0.5) }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-end">
+                      {(["monstera", "olive", "ivy"] as const).map((k, i) => (
+                        <SpeciesPlant key={k} kind={k} score={88} band="thriving" id={`g${i}`} size={i === 1 ? 34 : 27} potIndex={i + 3} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span>
+                  <span className="block font-display text-[22px] leading-tight text-forest">{title}</span>
+                  <span className="block text-[13px] leading-snug text-muted-strong">{body}</span>
+                </span>
+              </button>
+            ))}
           </div>
           <div className="mt-auto pt-8">
             <Primary onClick={() => setStep(6)}>Continue</Primary>

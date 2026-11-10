@@ -92,3 +92,55 @@ describe("reminder schedule for the service worker", () => {
     expect(new Date(list[0].at).toISOString()).toBe("2026-11-11T17:00:00.000Z");
   });
 });
+
+describe("v6: current-window percent and home view", () => {
+  it("is uncapped above target and partial below", async () => {
+    const { currentPercent, formatCurrent, trendFrom } = await import("./current");
+    const { computeCondition } = await import("./scoring");
+    const h = mkHabit("frequency", { target: 3, windowDays: 7 }, { id: "s", name: "Strength", startDate: "2026-09-01" });
+    const four = ["2026-11-04", "2026-11-06", "2026-11-08", "2026-11-10"].map((d) => ev("s", d));
+    const c4 = computeCondition(h, four, "2026-11-10");
+    expect(formatCurrent(currentPercent(h, c4))).toBe("133%");
+    expect(c4.score).toBeLessThanOrEqual(100);
+    const c2 = computeCondition(h, four.slice(0, 2), "2026-11-10");
+    expect(formatCurrent(currentPercent(h, c2))).toBe("67%");
+    expect(currentPercent(h, c2).ok).toBe(false);
+    // quantity totals: 90 of 150 minutes
+    const q = mkHabit("quantity", { target: 150, windowDays: 7, unit: "min", quantityMode: "total" }, { id: "q", startDate: "2026-09-01" });
+    const cq = computeCondition(q, [ev("q", "2026-11-08", 60), ev("q", "2026-11-09", 30)], "2026-11-10");
+    expect(formatCurrent(currentPercent(q, cq))).toBe("60%");
+    // limits: share of the allowance used; over the limit is not ok
+    const l = mkHabit("limit", { target: 2, windowDays: 7, unit: "drinks" }, { id: "l", startDate: "2026-09-01", completeLoggingSince: "2026-09-01" });
+    const cl = computeCondition(l, [ev("l", "2026-11-09", 3)], "2026-11-10");
+    const pl = currentPercent(l, cl);
+    expect(pl.kind).toBe("limit");
+    expect(formatCurrent(pl)).toBe("150%");
+    expect(pl.ok).toBe(false);
+    // paused or nothing yet: no number
+    expect(currentPercent({ ...h, pauses: [{ start: "2026-11-01" }] }, computeCondition({ ...h, pauses: [{ start: "2026-11-01" }] }, four, "2026-11-10")).ratio).toBeNull();
+    expect(trendFrom(80, 70)).toBe("up");
+    expect(trendFrom(60, 70)).toBe("down");
+    expect(trendFrom(72, 70)).toBe("steady");
+    expect(trendFrom(null, 70)).toBeNull();
+  });
+  it("remembers the last view and defaults to Plants", async () => {
+    const { resolveView, parseView } = await import("./view");
+    expect(resolveView(null)).toBe("plants");
+    expect(resolveView(null, "map")).toBe("map");
+    expect(resolveView("garden", "map")).toBe("garden");
+    expect(resolveView("bogus", undefined)).toBe("plants");
+    expect(parseView("plants")).toBe("plants");
+    const { emptyState } = await import("./storage/adapter");
+    expect(emptyState("UTC").settings.defaultView).toBe("plants");
+  });
+  it("persists the view per browser via localStorage", async () => {
+    const store = new Map<string, string>();
+    (globalThis as unknown as { window: unknown }).window = { localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) } };
+    const { loadView, saveView, VIEW_KEY } = await import("./view");
+    expect(loadView()).toBe("plants");
+    saveView("map");
+    expect(store.get(VIEW_KEY)).toBe("map");
+    expect(loadView("garden")).toBe("map");
+    delete (globalThis as unknown as { window?: unknown }).window;
+  });
+});

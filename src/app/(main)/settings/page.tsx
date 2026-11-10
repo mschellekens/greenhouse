@@ -12,6 +12,7 @@ import type { Habit, ReminderSettings } from "@/lib/types";
 import { canPromptInstall, isIOS, isStandalone, notifySupport, onInstallChange, promptInstall, showNotification, type NotifySupport } from "@/lib/pwa";
 import { loadLlmConfig, saveLlmConfig, type LlmConfig } from "@/lib/parser/browser";
 import { callLLM, DEFAULT_MODEL, type LlmProvider } from "@/lib/parser/llmCore";
+import { HOME_VIEWS, loadView, saveView, type HomeView } from "@/lib/view";
 
 function Row({ label, value, tone = "muted" }: { label: string; value: string; tone?: "ok" | "muted" }) {
   return (
@@ -367,6 +368,8 @@ export default function SettingsPage() {
   const zones = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [app.state.settings.timezone];
   const s = app.state.settings;
   const archived = app.state.habits.filter((h) => h.archivedAt);
+  const [homeView, setHomeView] = useState<HomeView>("plants");
+  useEffect(() => setHomeView(loadView(s.defaultView)), [s.defaultView]);
   return (
     <div className="space-y-4">
       <h1 className="font-display text-[40px] leading-tight text-forest">Settings</h1>
@@ -428,11 +431,21 @@ export default function SettingsPage() {
           <input value={s.name ?? ""} onChange={(e) => app.setSettings({ name: e.target.value })} className="w-40 rounded-lg border border-forest/15 bg-white px-2 py-1 text-right" placeholder="Optional" />
         </label>
         <div className="flex items-center justify-between py-2.5 text-[14px]">
-          <span id="dv">Default view</span>
+          <span id="dv">Home view</span>
           <div className="flex rounded-full bg-stone p-0.5 text-[12px]" role="radiogroup" aria-labelledby="dv">
-            {(["map", "garden"] as const).map((v) => (
-              <button key={v} role="radio" aria-checked={s.defaultView === v} onClick={() => app.setSettings({ defaultView: v })} className={`rounded-full px-3 py-1 ${s.defaultView === v ? "bg-white font-medium shadow-sm" : "text-muted-strong"}`}>
-                {v === "map" ? "Map" : "Garden"}
+            {HOME_VIEWS.map((v) => (
+              <button
+                key={v.id}
+                role="radio"
+                aria-checked={homeView === v.id}
+                onClick={() => {
+                  app.setSettings({ defaultView: v.id });
+                  saveView(v.id);
+                  setHomeView(v.id);
+                }}
+                className={`rounded-full px-3 py-1 ${homeView === v.id ? "bg-white font-medium shadow-sm" : "text-muted-strong"}`}
+              >
+                {v.label}
               </button>
             ))}
           </div>
