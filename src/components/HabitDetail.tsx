@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useApp } from "@/lib/store";
 import type { Category, Habit, HabitEvent, Importance, PlantKind } from "@/lib/types";
-import { Plant, PLANT_LABELS } from "./Plant";
+import { HabitBench, PLANT_LABELS, SpeciesPlant, plantLine } from "./greenhouse/HabitPlants";
 import { ScoreChart } from "./ScoreChart";
 import { QuickLog } from "./QuickLog";
 import { ConditionLabel } from "./Condition";
@@ -47,18 +47,21 @@ function timeOf(e: HabitEvent, tz: string) {
 }
 
 /** The Garden detail panel (spec section 5). */
-export function HabitSummary({ habit, onClose }: { habit: Habit; onClose?: () => void }) {
+export function HabitSummary({ habit, onClose, showBench = true }: { habit: Habit; onClose?: () => void; showBench?: boolean }) {
   const app = useApp();
   const c = app.conditions[habit.id];
   const g = currentGoal(habit);
   const att = useAttainment(habit);
   return (
     <div>
+      {showBench && (
+        <figure className="mb-3">
+          <HabitBench habitId={habit.id} title={habit.name} plants={att.col.plants} score={c.score} band={c.band} percent={att.ratio === null ? undefined : formatPercent(att.ratio)} height={170} max={8} />
+          <figcaption className="mt-1.5 text-[12px] text-muted-strong">{plantLine(att.col.plants)}</figcaption>
+        </figure>
+      )}
       <div className="flex items-start gap-2">
-        <div className="-my-3 -ml-3 shrink-0">
-          <Plant kind={habit.plant} score={c.score} band={c.band} id={habit.id} size={104} />
-        </div>
-        <div className="min-w-0 flex-1 pt-1">
+        <div className="min-w-0 flex-1">
           <h2 className="font-display text-[34px] leading-none text-forest">{habit.name}</h2>
           <ConditionLabel band={c.band} score={c.score} className="mt-2" />
           <p className="mt-2 font-display text-[21px] leading-snug text-forest">“{BAND_PHRASE[c.band]}”</p>
@@ -201,8 +204,11 @@ export function HabitDetail({ habit }: { habit: Habit }) {
   return (
     <div className="space-y-4">
       <section className="glasshouse -mx-4 flex flex-col items-center rounded-b-[2rem] px-5 pb-5 pt-1 text-center">
-        <Plant kind={habit.plant} score={c.score} band={c.band} id={habit.id} size={180} />
-        <h1 className="mt-1 font-display text-[40px] leading-none text-forest">
+        <div className="w-full max-w-sm pt-3">
+          <HabitBench habitId={habit.id} title={habit.name} plants={att.col.plants} score={c.score} band={c.band} percent={att.ratio === null ? undefined : formatPercent(att.ratio)} height={230} max={8} />
+          <p className="mt-1 text-[12px] text-muted-strong">{plantLine(att.col.plants)}</p>
+        </div>
+        <h1 className="mt-3 font-display text-[40px] leading-none text-forest">
           {habit.emoji ? <span className="mr-2 text-[28px] align-middle">{habit.emoji}</span> : null}
           {habit.name}
         </h1>
@@ -444,12 +450,12 @@ export function HabitDetail({ habit }: { habit: Habit }) {
         <div className="grid grid-cols-4 gap-1.5">
           {(Object.keys(PLANT_LABELS) as PlantKind[]).map((k) => (
             <button key={k} onClick={() => app.changePlant(habit.id, k)} className={`flex flex-col items-center rounded-2xl border pb-1 text-[11px] ${habit.plant === k ? "border-forest bg-sage-100" : "border-transparent"}`} aria-pressed={habit.plant === k}>
-              <Plant kind={k} score={c.score ?? 75} band={c.band === "unknown" || c.band === "paused" ? "doing-well" : c.band} id={habit.id} size={58} animate={false} />
+              <SpeciesPlant kind={k} score={c.score ?? 75} band={c.band === "unknown" || c.band === "paused" ? "doing-well" : c.band} id={`pick-${k}`} size={58} />
               {PLANT_LABELS[k]}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[12px] text-muted-strong">Changing the plant never changes your history.</p>
+        <p className="mt-2 text-[12px] text-muted-strong">This is the signature plant at the front of the bench; companions join it each goal-week. Changing it never changes your history.</p>
       </Section>
 
       <section className="flex flex-col gap-1 pb-4">

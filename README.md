@@ -1,10 +1,35 @@
 # Greenhouse
 
-Habits that grow like plants. Tell it what you did in plain words; each habit's plant reflects how the last few weeks actually went. No streaks, badges or confetti.
+Habits that grow like plants. Tell it what you did in plain words; each habit gets a bench in a walk-in greenhouse, every week you reach its goal adds a plant that keeps growing, and how lush or droopy the plants look follows how the habit is trending. It is about balance over time, not perfect days. No streaks, badges or confetti.
 
-This is the first MVP build. It runs fully on one device (data in the browser) with a deterministic parser. The app is published as a static export on GitHub Pages. Cloud sync and AI parsing stay off until a Node host and keys exist.
+**Live:** https://mschellekens.github.io/greenhouse/ · **Repo:** https://github.com/mschellekens/greenhouse
 
-**Live:** https://mschellekens.github.io/greenhouse/
+## Using it
+
+1. **Start.** Open the link on your phone. *Create your greenhouse* plays three short intro screens (balance, rhythm, care), then asks what you want to grow in your own words ("lift weights 3 times a week, read more, drink less"). It proposes habits, asks a follow-up only when a number is missing, and you confirm. *Explore an example greenhouse* loads a year of demo history instead. You can replay the intro any time: Settings → *How Greenhouse works*.
+2. **Log.** Tap the button on a tile or bench sheet for one-tap logging (with undo), or type or dictate into *Tell Greenhouse what you did* ("ran 5k yesterday", "2 glasses of wine last night"). You always confirm before anything is saved.
+3. **Look.** *Map* ranks what needs attention. *Garden* is the greenhouse: drag to look around, pinch or use +/− to zoom, tap a bench for its detail. The number painted on the front pot is goal attainment. *History* lists every entry (editable), condition changes and new plants.
+4. **Tend.** Pause a habit for travel or injury (paused days never count against you), change its goal in plain words, archive it (keeps history) or delete it.
+
+### Install it on your home screen (works offline)
+
+- **iPhone / iPad:** open the link in Safari → Share → *Add to Home Screen*.
+- **Android:** Chrome menu (⋮) → *Install app* (or the install prompt in Settings → Install & offline).
+- **Desktop Chrome / Edge:** install icon in the address bar.
+
+After the first visit a service worker caches the whole app, so it opens and works with no connection. Your data never leaves the device.
+
+### Reminders
+
+Settings → Reminders. Off by default, at most one per habit per day, per-habit time and days, skipped for paused habits and (optionally) for habits already logged that day. They come from the device with no server: they fire while Greenhouse is open or in the background, and an installed Android app may also get them when closed (Periodic Background Sync, timing decided by the browser). **iPhone needs the Home Screen install first** (iOS 16.4+), and then reminders show while the app is running. True push while fully closed needs a push server (next step below).
+
+### Back up your data
+
+Everything lives in this browser's storage. Settings → *Your data* → **Export backup (JSON)** downloads every habit, goal version, pause and entry. **Import a backup…** (or *Restore from a backup* on the welcome screen of a new device) restores it after validation. *Erase all data* wipes this device. Back up before clearing your browser or switching phones.
+
+### Optional: AI understanding with your own key
+
+The built-in rule parser is always on. Settings → *Understanding your words* lets you add your own OpenAI or Anthropic API key (and optional model). The key is stored only in this browser's localStorage and the browser calls the provider directly. Every AI answer goes through the same validation as the server route (known habits only, no future dates, no numbers that aren't in your text, goal proposals normalised), and any error, timeout or ungrounded answer falls back to the rules. Use a key with a spending limit.
 
 ## Run it
 
@@ -12,7 +37,7 @@ This is the first MVP build. It runs fully on one device (data in the browser) w
 npm install
 npm run dev            # http://localhost:3000/greenhouse/
 npm test
-npm run build          # static export into out/
+npm run build          # static export into out/ + generates out/sw.js (precache list)
 npx --yes serve out    # local preview of the Pages build
 ```
 
@@ -25,10 +50,9 @@ npm run lint
 npm run typecheck
 npm test               # Vitest: scoring engine, attention, demo journey, parsers
 npm run build
-node scripts/screenshots.mjs http://localhost:3100   # mobile screenshots -> screenshots/ (needs Chrome at /usr/bin/google-chrome)
+node scripts/v5-shots.mjs http://localhost:3200/greenhouse   # screenshots + checks: service worker, offline reload, drag reorder, backup export/import, intro
+node scripts/icons.mjs # re-render PWA icons (any, maskable, apple-touch) from public/icon.svg
 ```
-
-On first open you get onboarding (spec §3, six screens: welcome, how many, describe in your own words, confirm, Map or Garden, integrations). **Explore an example greenhouse** on the welcome screen seeds the spec §13 journey (Strength 3/wk, Cardio 2/wk, Alcohol max 2/wk with complete logging, Reading 4 days/wk, Family call every 14 days; six weeks of history). `/plants` shows every plant at every condition. Add more habits later via Settings → Add habits (`/welcome?step=3`).
 
 ## How it is built
 
@@ -37,15 +61,21 @@ On first open you get onboarding (spec §3, six screens: welcome, how many, desc
 | Domain types (events are the source of truth) | `src/lib/types.ts` |
 | Scoring engine (pure, deterministic) | `src/lib/scoring.ts`, tests in `src/lib/scoring.test.ts` |
 | Rule parser (goals + logs, follow-ups, never invents numbers) | `src/lib/parser/rules.ts`, `catalog.ts`, tests in `rules.test.ts` |
-| LLM parser (only when a key is set; validated, falls back to rules) | `src/lib/parser/llm.ts`, `src/app/api/parse/route.ts` |
+| LLM parsing: shared prompts/calls `llmCore.ts`, validation `llm.ts`, browser parser with user key `browser.ts` (tests `browser.test.ts`), optional server route `src/optional-api/parse/route.ts` | `src/lib/parser/` |
+| Garden: ISO weeks, earned plants, growth stages, attainment, vitality | `src/lib/garden.ts`, tests `garden.test.ts` |
+| Greenhouse scene (3D perspective, pan/zoom, readable signs) | `src/components/greenhouse/Interior.tsx`, `PanZoom.tsx`, `PottedPlant.tsx`, tests `signs.test.ts` |
+| Habit bench and single plants (detail sheet, habit page, pickers) | `src/components/greenhouse/HabitPlants.tsx` |
+| Intro (NUX), replayable | `src/components/Nux.tsx`, `src/app/intro` |
+| PWA: service worker template + build step, registration, install, notifications | `scripts/sw-template.js`, `scripts/build-sw.mjs`, `src/lib/pwa.ts`, `src/components/Pwa.tsx` |
+| Reminders (pure scheduling) | `src/lib/reminders.ts` |
+| Backup export/import validation, reorder helpers | `src/lib/backup.ts`, `src/lib/order.ts`, tests `v5.test.ts` |
 | Storage adapter interface | `src/lib/storage/adapter.ts` |
 | localStorage adapter (active) | `src/lib/storage/local.ts` |
 | Supabase adapter (stub, **not connected**) + schema/RLS | `src/lib/storage/supabase.ts`, `supabase/schema.sql` |
 | App state + actions (undo, soft delete) | `src/lib/store.tsx` |
 | Attention ranking, band labels, next-action copy | `src/lib/attention.ts` |
 | Example greenhouse (spec §13 journey) | `src/lib/demo.ts`, tests in `demo.test.ts` |
-| SVG plants (olive, fern, ficus, monstera, lavender, ivy, rosemary) | `src/components/Plant.tsx` (all states at `/plants`) |
-| Screens | `src/app/welcome` (onboarding 1-6), `src/app/(main)/{map,garden,habit/[id],history,settings}` |
+| Screens | `src/app/intro`, `src/app/welcome` (onboarding 1-6), `src/app/(main)/{map,garden,habit,history,settings}`; every species and state at `/plants` |
 
 ### Brand
 Palette from the spec: ivory `#F7F6F0`, forest `#23382F`, sage `#829985`, leaf `#5E9070`, ochre `#D9AF69`, terracotta `#C97862`, stone `#ECEDE5`, gray `#788077` (Tailwind tokens in `tailwind.config.ts`). Small text uses slightly darker "ink" variants of gray/sage/ochre/terracotta so it meets WCAG AA contrast on ivory. Type: Instrument Serif (display) + Inter.
@@ -62,17 +92,15 @@ Every goal is a target over a **rolling window** (`windowDays`: 1, 7, 14, 30), w
    - Create a project; run `supabase/schema.sql` (tables: profiles, habits, habit_goals, habit_pauses, events; RLS on every table, owner-only policies).
    - Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
    - `npm i @supabase/supabase-js`, implement `SupabaseAdapter` (`load`/`save`) and add sign-in (magic link or Google). Swap the adapter in `src/lib/store.tsx`. A one-time import of the local data on first sign-in is recommended.
-2. **LLM key** (better language understanding)
-   - Set `OPENAI_API_KEY` (optional `OPENAI_MODEL`, default `gpt-4o-mini`) or `ANTHROPIC_API_KEY` (optional `ANTHROPIC_MODEL`) on the server. The app detects it via `GET /api/parse` and uses the LLM parser. Every LLM result is checked against real habits, future dates and numbers present in the text; anything ungrounded falls back to the rule parser.
-3. **Node/Vercel host (optional, for AI parsing + later Supabase)**
-   - The GitHub Pages deploy is already live at the link above (static export, rule parser only).
-   - For a server host, move `src/optional-api/parse/route.ts` back to `src/app/api/parse/route.ts`, drop `output: 'export'` / `basePath` if the app is at the domain root, add the env vars, and deploy.
+2. **Push server** (reminders while the app is fully closed): a small Web Push service (VAPID keys) that stores push subscriptions per user, best alongside Supabase.
+3. **Node/Vercel host (optional)**: move `src/optional-api/parse/route.ts` to `src/app/api/parse/route.ts`, drop `output: 'export'`/`basePath` if served at the root, set `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`. Today the static build supports AI only with a user-supplied key.
 
 Integrations (Apple Health, Google Health Connect, Strava, Oura) appear in onboarding step 6 and Settings as *Not available yet*. None are implemented; the schema has `integration_connections` and `events.source_event_id` (deduped) ready.
 
 ## Known limitations of this build
-- Data is per browser until Supabase is connected. Use Settings → Export to back up.
-- Custom Map order uses move buttons rather than drag and drop.
-- Reminders are off and not implemented.
-- No service worker yet, so the PWA installs but does not work offline.
-- The rule parser covers common phrasings (numbers as words, minutes/hours, drinks, today/yesterday/last night/this morning/weekday names/"N days ago"). Anything else gets a follow-up question instead of a guess.
+- Data is per browser until Supabase is connected. Export a backup regularly.
+- Reminders can't fire while the app is fully closed on iPhone, and only best-effort on Android (no push server yet).
+- Integrations are listed honestly as *Not available yet*; nothing is imported.
+- Drag-and-drop reordering lives in Settings → Habits (move buttons also on the Map's Custom order).
+- The rule parser covers common phrasings (numbers as words, minutes/hours, drinks, today/yesterday/last night/this morning/weekday names/"N days ago"). Anything else gets a follow-up question instead of a guess, unless you add your own AI key.
+- Plants keep accumulating (one per goal-week). Each bench shows as many as fit and its sign notes "+N more"; the detail sheet and habit page show the rest as a count.

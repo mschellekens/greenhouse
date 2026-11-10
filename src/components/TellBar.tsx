@@ -11,6 +11,27 @@ export function TellBar() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LogParseResult | null>(null);
   const [lastText, setLastText] = useState("");
+  const [via, setVia] = useState<"text" | "llm">("text");
+  const [canDictate, setCanDictate] = useState(false);
+  const [listening, setListening] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+    setCanDictate(!!(w.SpeechRecognition || w.webkitSpeechRecognition));
+  }, []);
+  function dictate() {
+    type Rec = { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void; start: () => void; stop: () => void };
+    const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
+    const R = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!R) return;
+    const rec = new R();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true;
+    rec.onresult = (e) => setText(Array.from(e.results).map((r) => r[0].transcript).join(" "));
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    setListening(true);
+    rec.start();
+  }
   useEffect(() => {
     if (!result) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setResult(null);
@@ -21,6 +42,7 @@ export function TellBar() {
   async function run(t: string, hints?: LogHints) {
     setBusy(true);
     const parser = await getParser();
+    setVia(parser.name.startsWith("llm") ? "llm" : "text");
     const r = await parser.parseLog(t, { habits: app.activeHabits, today: app.today, timezone: app.state.settings.timezone }, hints);
     setResult(r);
     setBusy(false);
@@ -52,7 +74,15 @@ export function TellBar() {
           className="h-12 flex-1 rounded-full border border-forest/15 bg-white px-5 text-[15px] shadow-sm outline-none placeholder:text-muted-strong focus:border-forest/40"
           autoComplete="off"
         />
-        <button type="submit" disabled={busy || !text.trim()} className="h-12 w-12 shrink-0 rounded-full bg-forest text-ivory shadow-sm disabled:opacity-40" aria-label="Send">
+        {canDictate && (
+          <button type="button" onClick={dictate} aria-label={listening ? "Listening" : "Dictate"} aria-pressed={listening} className={`h-12 w-12 shrink-0 rounded-full border border-forest/15 shadow-sm ${listening ? "bg-terracotta-ink text-white" : "bg-white text-forest"}`}>
+            <svg viewBox="0 0 24 24" width="20" height="20" className="mx-auto" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden>
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </button>
+        )}
+        <button type="submit" disabled={busy || !text.trim()} className="h-12 w-12 shrink-0 rounded-full bg-forest text-ivory shadow-sm disabled:opacity-40" aria-label={busy ? "Working" : "Send"}>
           <svg viewBox="0 0 24 24" width="20" height="20" className="mx-auto" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
@@ -83,7 +113,7 @@ export function TellBar() {
                   <button
                     className="h-11 flex-1 rounded-full bg-forest text-sm font-medium text-ivory"
                     onClick={() => {
-                      app.logEvents(result.events, "text");
+                      app.logEvents(result.events, via);
                       setText("");
                       close();
                     }}

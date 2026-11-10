@@ -34,6 +34,10 @@ interface Ctx {
   archiveHabit: (id: string, archived: boolean) => void;
   changePlant: (id: string, plant: PlantKind) => void;
   moveHabit: (id: string, dir: -1 | 1) => void;
+  /** Set the custom order of active habits (drag and drop). */
+  reorderHabits: (ids: string[]) => void;
+  /** Replace everything with an imported backup. */
+  importState: (state: AppState) => void;
   logEvents: (logs: ParsedLog[], source: HabitEvent["source"]) => void;
   quickLog: (habitId: string, quantity?: number, date?: string) => void;
   updateEvent: (id: string, patch: Partial<HabitEvent>) => void;
@@ -168,6 +172,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const order = new Map(list.map((h, k) => [h.id, k]));
         return { ...s, habits: s.habits.map((h) => (order.has(h.id) ? { ...h, sortOrder: order.get(h.id)! } : h)), settings: { ...s.settings, mapOrder: "custom" } };
       }),
+    reorderHabits: (ids) =>
+      setState((s) => {
+        const order = new Map(ids.map((id, k) => [id, k]));
+        return { ...s, habits: s.habits.map((h) => (order.has(h.id) ? { ...h, sortOrder: order.get(h.id)! } : h)), settings: { ...s.settings, mapOrder: "custom" } };
+      }),
+    importState: (next) => setState(() => next),
     logEvents: (logs, source) => {
       const now = new Date().toISOString();
       const evs: HabitEvent[] = logs.map((l) => ({ id: uid(), habitId: l.habitId, date: l.date, occurredAt: l.occurredAt, quantity: l.quantity, unit: l.unit, note: l.note, source, createdAt: now }));

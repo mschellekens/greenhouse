@@ -5,23 +5,18 @@ import { HabitSummary } from "@/components/HabitDetail";
 import { BAND_LABEL } from "@/lib/attention";
 import { greeting } from "@/lib/format";
 import { ViewToggle } from "@/components/Nav";
-import { GreenhouseInterior, SCENE_W, SCENE_H, type Zone } from "@/components/greenhouse/Interior";
+import { GreenhouseInterior, SignLayer, signSpecs, SCENE_W, SCENE_H, type SignSpec, type Zone } from "@/components/greenhouse/Interior";
 import { PanZoom } from "@/components/greenhouse/PanZoom";
-import { attainment, collectionFor, formatPercent, joinedMessage, newPlantsSince, shelfCaption, vitalityFor, STAGE_LABEL, SPECIES_LABEL } from "@/lib/garden";
+import { attainment, collectionFor, formatPercent, joinedMessage, newPlantsSince, shelfCaption, vitalityFor } from "@/lib/garden";
 import { scoreColor } from "@/lib/scoring";
 
 const SEEN_KEY = "greenhouse:garden-seen";
 
-function useReducedMotion() {
-  const [r, setR] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const on = () => setR(m.matches);
-    on();
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return r;
+/** Signs re-layout (scale and stick to the edges) only when a pan or pinch settles, so dragging stays cheap. */
+function StickySigns({ specs, view }: { specs: SignSpec[]; view: { k: number; x: number; w: number; moving: boolean } }) {
+  const last = useRef<{ k: number; visible: [number, number] } | null>(null);
+  if (!view.moving || !last.current) last.current = { k: view.k, visible: [Math.round(-view.x / view.k / 24) * 24, Math.round((view.w - view.x) / view.k / 24) * 24] };
+  return <SignLayer specs={specs} zoom={last.current.k} visible={last.current.visible} />;
 }
 
 export default function GardenPage() {
@@ -29,7 +24,6 @@ export default function GardenPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<string | null>(null);
-  const reduced = useReducedMotion();
   const open = app.activeHabits.find((h) => h.id === openId);
 
   const collections = useMemo(
@@ -52,6 +46,8 @@ export default function GardenPage() {
       caption: shelfCaption(h, col, c.band === "paused"),
     };
   }), [app.activeHabits, app.conditions, collections]);
+
+  const signs = useMemo(() => signSpecs(zones), [zones]);
 
   // New plants since the last visit: grow them in and say so, once.
   const allIds = zones.flatMap((z) => z.plants.map((p) => p.id));
@@ -93,7 +89,6 @@ export default function GardenPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const openCol = open ? collections[open.id] : undefined;
 
   return (
     <div>
@@ -119,7 +114,12 @@ export default function GardenPage() {
 
       <div className="relative -mx-4 overflow-hidden rounded-[2rem] md:mx-0">
         <PanZoom width={SCENE_W} height={SCENE_H} viewportHeight={(w) => (w >= 700 ? Math.max(460, (w * SCENE_H) / SCENE_W) : Math.min(520, Math.max(420, window.innerHeight * 0.58)))}>
-          <GreenhouseInterior zones={zones} newIds={newIds} onOpen={setOpenId} swayNear={!reduced} />
+          {(v) => (
+            <>
+              <GreenhouseInterior zones={zones} newIds={newIds} onOpen={setOpenId} swayNear={false} />
+              <StickySigns specs={signs} view={v} />
+            </>
+          )}
         </PanZoom>
         {!zones.length && (
           <div className="absolute inset-x-6 top-[30%] rounded-3xl bg-ivory/95 p-6 text-center shadow-sm">
@@ -163,23 +163,9 @@ export default function GardenPage() {
 
       {open && (
         <div className="fixed inset-0 z-40 flex items-end bg-forest/25" onClick={() => setOpenId(null)}>
-          <div className="sheet pb-safe mx-auto w-full max-w-md rounded-t-[2rem] bg-ivory p-5 pb-8 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={open.name}>
+          <div className="sheet pb-safe mx-auto max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-[2rem] bg-ivory p-5 pb-8 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={open.name}>
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-forest/15" />
-            {openCol && (
-              <p className="mb-2 text-[13px] text-muted-strong">
-                {openCol.plants.length ? (
-                  <>
-                    {openCol.plants.length} plant{openCol.plants.length === 1 ? "" : "s"} on this bench
-                    {openCol.streak > 1 ? ` · ${openCol.streak} goal-weeks in a row` : ""}
-                    {" · newest: "}
-                    {SPECIES_LABEL[openCol.plants[openCol.plants.length - 1].species]} ({STAGE_LABEL[openCol.plants[openCol.plants.length - 1].stage]})
-                  </>
-                ) : (
-                  "No plants yet. Meet this week’s goal and the first one arrives."
-                )}
-              </p>
-            )}
-            <HabitSummary habit={open} onClose={() => setOpenId(null)} />
+            <HabitSummary habit={open} onClose={() => setOpenId(null)} showBench />
           </div>
         </div>
       )}

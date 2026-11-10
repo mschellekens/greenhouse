@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "@/lib/store";
 import { formatDate, instantFor, relativeDay } from "@/lib/dates";
 import { conditionChanges } from "@/lib/scoring";
@@ -7,6 +7,8 @@ import { BAND_LABEL } from "@/lib/attention";
 import { SOURCE_LABEL } from "@/lib/format";
 import { ConditionLabel } from "@/components/Condition";
 import type { HabitEvent } from "@/lib/types";
+import { addDays } from "@/lib/dates";
+import { collectionFor, SPECIES_LABEL } from "@/lib/garden";
 
 function Row({ e }: { e: HabitEvent }) {
   const app = useApp();
@@ -71,6 +73,16 @@ export default function HistoryPage() {
     .flatMap((h) => conditionChanges(h, app.state.events, app.today, 14).map((c) => ({ ...c, habit: h })))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 6);
+  const since = addDays(app.today, -56);
+  const joined = useMemo(
+    () =>
+      app.state.habits
+        .filter((h) => !h.archivedAt && (filter === "all" || h.id === filter))
+        .flatMap((h) => collectionFor(h, app.state.events, app.today).plants.filter((p) => p.weekStart >= since).map((p) => ({ p, habit: h })))
+        .sort((a, b) => b.p.weekStart.localeCompare(a.p.weekStart))
+        .slice(0, 8),
+    [app.state.habits, app.state.events, app.today, filter, since],
+  );
   return (
     <div>
       <h1 className="mb-1 font-display text-[40px] leading-tight text-forest">History</h1>
@@ -95,6 +107,21 @@ export default function HistoryPage() {
                 <span className="flex items-center gap-1 text-[12px] text-muted-strong">
                   {BAND_LABEL[c.from]} → <ConditionLabel band={c.to} score={c.to === "thriving" ? 90 : c.to === "doing-well" ? 70 : c.to === "worth-attention" ? 50 : 20} />
                 </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {joined.length > 0 && (
+        <section className="mb-5 rounded-3xl bg-white/70 p-4">
+          <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-strong">New plants · past 8 weeks</h2>
+          <ul className="space-y-1.5 text-[14px]">
+            {joined.map(({ p, habit }) => (
+              <li key={p.id} className="flex justify-between gap-2">
+                <span>
+                  A {SPECIES_LABEL[p.species]} joined {habit.name}
+                </span>
+                <span className="shrink-0 text-[12px] text-muted-strong">week of {formatDate(p.weekStart)}</span>
               </li>
             ))}
           </ul>

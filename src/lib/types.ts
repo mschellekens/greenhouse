@@ -79,6 +79,22 @@ export interface Settings {
   onboarded: boolean;
   name?: string;
   habitCountGoal?: number;
+  /** Local reminders. Off by default; never more than one per habit per day. */
+  reminders?: ReminderSettings;
+}
+
+export interface HabitReminder {
+  /** "HH:MM" local time */
+  time: string;
+  /** 0 = Sunday ... 6 = Saturday */
+  days: number[];
+}
+
+export interface ReminderSettings {
+  enabled: boolean;
+  /** Skip the reminder when the habit already has an entry that day. */
+  skipIfLogged: boolean;
+  byHabit: Record<string, HabitReminder>;
 }
 
 export interface AppState {

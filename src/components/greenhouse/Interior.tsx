@@ -478,6 +478,111 @@ function FloorThings(): Drawable[] {
   return out;
 }
 
+// ----------------------------------------------------------- signs
+
+export interface SignSpec {
+  id: string;
+  x: number;
+  y: number;
+  /** perspective scale at the sign's depth */
+  base: number;
+  /** y of the roof attachment point for hanging signs, or null for bench signs */
+  roofY: number | null;
+  name: string;
+  caption: string;
+  color: string;
+  paused: boolean;
+}
+
+/** Where each zone's sign sits in scene coordinates (front row on benches, deeper ones hang from the roof). */
+export function signSpecs(zones: Zone[]): SignSpec[] {
+  const SECTIONS = sectionsFor(Math.max(3, zones.length));
+  return zones.slice(0, SECTIONS.length).map((zone, zi) => {
+    const sec = SECTIONS[zi];
+    const sx0 = sec.kind === "C" ? 0 : sec.kind === "L" ? -2.95 : 2.95;
+    const front = sec.z0 < 1;
+    const sy0 = front ? (sec.kind === "C" ? 0.5 : 0.66) : 2.05;
+    const [x, y, ls] = project(sx0, sy0, sec.z0 + 0.02);
+    const cap = sectionSlots(sec).length;
+    const hidden = Math.max(0, zone.plants.length - cap);
+    return {
+      id: zone.id,
+      x,
+      y,
+      base: 0.42 + 0.75 * ls,
+      roofY: front ? null : project(sx0, 2.6, sec.z0)[1],
+      name: zone.name,
+      caption: hidden > 0 ? `${zone.caption} · +${hidden} more` : zone.caption,
+      color: zone.color,
+      paused: zone.band === "paused",
+    };
+  });
+}
+
+/** Sign height on screen never drops below this many CSS px, whatever the zoom. */
+export const MIN_SIGN_PX = 30;
+const SIGN_W = 168;
+const SIGN_H = 36;
+
+/**
+ * Sign scale at a given view zoom: the perspective size, but never smaller
+ * on screen than MIN_SIGN_PX tall. Exported for tests.
+ */
+export function signScale(base: number, zoom: number): number {
+  return Math.max(base, MIN_SIGN_PX / SIGN_H / Math.max(0.05, zoom));
+}
+
+/**
+ * Lay out signs at the current zoom: scale each up to the readable minimum,
+ * then nudge deeper signs upward until they don't overlap nearer ones.
+ */
+export function layoutSigns(specs: SignSpec[], zoom: number, visible?: [number, number]) {
+  const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
+  const order = specs.map((sp, i) => ({ sp, i })).sort((a, b) => b.sp.base - a.sp.base);
+  const out: { spec: SignSpec; scale: number; x: number; y: number }[] = new Array(specs.length);
+  for (const { sp, i } of order) {
+    const sc = signScale(sp.base, zoom);
+    const w = SIGN_W * sc;
+    const h = SIGN_H * sc;
+    let x = sp.x;
+    // keep signs of partly visible sections on screen (sticky at the edges)
+    if (visible) {
+      const m = 6 / zoom;
+      const [v0, v1] = visible;
+      if (x + w / 2 > v0 && x - w / 2 < v1 && v1 - v0 > w + 2 * m) x = Math.min(Math.max(x, v0 + w / 2 + m), v1 - w / 2 - m);
+    }
+    let y = sp.y;
+    for (let tries = 0; tries < 6; tries++) {
+      const hit = placed.find((r) => x - w / 2 < r.x1 && x + w / 2 > r.x0 && y < r.y1 && y + h > r.y0);
+      if (!hit) break;
+      y = hit.y0 - h - 3;
+    }
+    if (y < 4) y = 4;
+    placed.push({ x0: x - w / 2, x1: x + w / 2, y0: y, y1: y + h });
+    out[i] = { spec: sp, scale: sc, x, y };
+  }
+  return out;
+}
+
+/** Signs drawn in their own layer above the scene so they can stay readable at any zoom. */
+export const SignLayer = React.memo(function SignLayer({ specs, zoom, visible }: { specs: SignSpec[]; zoom: number; visible?: [number, number] }) {
+  // quantise so pinch-zooming doesn't re-layout every frame
+  const q = Math.round(zoom * 20) / 20;
+  const laid = layoutSigns(specs, q, visible);
+  return (
+    <svg viewBox={`0 0 ${SCENE_W} ${SCENE_H}`} width={SCENE_W} height={SCENE_H} aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", willChange: "transform" }}>
+      {laid.map(({ spec, scale, x, y }) => {
+        const hang = spec.roofY === null ? 14 : Math.max(10, (y - spec.roofY) / scale);
+        return (
+          <g key={spec.id} style={spec.paused ? { filter: "saturate(0.4)" } : undefined}>
+            <Sign x={x} y={y} scale={scale} hang={hang} name={spec.name} caption={spec.caption} color={spec.color} />
+          </g>
+        );
+      })}
+    </svg>
+  );
+});
+
 // ----------------------------------------------------------- scene
 export const GreenhouseInterior = React.memo(function GreenhouseInterior({
   zones,
@@ -493,7 +598,6 @@ export const GreenhouseInterior = React.memo(function GreenhouseInterior({
   const drawables: Drawable[] = [];
   const overlays: React.ReactNode[] = [];
   const hits: React.ReactNode[] = [];
-  const overlaysProxy = { push: (d: Drawable) => overlays.push(d.node) };
 
   // benches in 0.6 m chunks so plants and wood interleave correctly by depth
   const SECTIONS = sectionsFor(Math.max(3, zones.length));
@@ -568,23 +672,9 @@ export const GreenhouseInterior = React.memo(function GreenhouseInterior({
         });
       });
     }
-    // sign at the front of the section, facing the doorway
-    const sx0 = sec.kind === "C" ? 0 : sec.kind === "L" ? -2.95 : 2.95;
-    // the front row of benches carries its signs; deeper sections hang theirs from the roof so they stay visible
-    const front = sec.z0 < 1;
-    const sy0 = front ? (sec.kind === "C" ? 0.5 : 0.66) : 2.05;
-    const [lx, ly, ls] = project(sx0, sy0, sec.z0 + 0.02);
-    const hidden = zone.plants.length - shown.length;
-    (front ? drawables : overlaysProxy).push({
-      z: sec.z0 - 0.02,
-      node: (
-        <g key={`sign${zone.id}`} style={paused ? { filter: "saturate(0.4)" } : undefined}>
-          <Sign x={lx} y={ly} scale={0.42 + 0.75 * ls} hang={front ? 14 : (project(0, 2.05 + 0.55, sec.z0)[1] - ly) * -1 / (0.42 + 0.75 * ls) + 0} name={zone.name} caption={hidden > 0 ? `${zone.caption} · +${hidden} more` : zone.caption} color={zone.color} />
-        </g>
-      ),
-    });
     if (shown.length === 0 && zi === zones.findIndex((q) => q.plants.length === 0)) {
-      const [ix, iy, is] = project(sec.kind === "C" ? 0 : sx0, 1.6, sec.z0 + 0.5);
+      const sx0 = sec.kind === "C" ? 0 : sec.kind === "L" ? -2.95 : 2.95;
+      const [ix, iy, is] = project(sx0, 1.6, sec.z0 + 0.5);
       overlays.push(
         <g key="invite" transform={`translate(${ix},${iy}) scale(${(0.5 + 0.6 * is).toFixed(3)})`}>
           <rect x={-130} y={-14} width={260} height={28} rx={14} fill="#F7F6F0" opacity={0.94} />

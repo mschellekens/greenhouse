@@ -3,13 +3,14 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { Wordmark } from "@/components/Brand";
-import { Plant, PLANT_LABELS } from "@/components/Plant";
+import { PLANT_LABELS, SpeciesPlant } from "@/components/greenhouse/HabitPlants";
 import { getParser, type ProposedHabit } from "@/lib/parser";
 import { combinedQuestion, proposeFromName } from "@/lib/parser/rules";
 import { ARCHETYPES, SUGGESTIONS } from "@/lib/parser/catalog";
 import { DIRECTION_LABEL, goalSentence } from "@/lib/format";
 import { scoreTint } from "@/lib/scoring";
 import { INTEGRATIONS } from "@/lib/integrations";
+import { parseBackup } from "@/lib/backup";
 import type { Category, Direction, PlantKind } from "@/lib/types";
 
 const EXAMPLE = "I want to lift weights three times a week, do cardio twice, read more, and drink less alcohol.";
@@ -94,14 +95,14 @@ function Onboarding() {
       {step === 1 && (
         <section className="rise flex flex-1 flex-col">
           <div className="glasshouse -mx-5 mb-8 flex items-end justify-center rounded-b-[2.5rem] px-2 pb-3 pt-8">
-            <Plant kind="fern" score={78} band="doing-well" id="w1" size={104} />
-            <Plant kind="olive" score={96} band="thriving" id="w2" size={136} />
-            <Plant kind="lavender" score={88} band="thriving" id="w3" size={104} />
+            <SpeciesPlant kind="fern" score={80} band="thriving" id="w1" size={100} potIndex={2} sway />
+            <SpeciesPlant kind="olive" score={96} band="thriving" id="w2" size={136} potIndex={0} sway />
+            <SpeciesPlant kind="lavender" score={88} band="thriving" id="w3" size={100} potIndex={4} sway />
           </div>
           <h1 className="font-display text-[52px] leading-[0.98] text-forest">Grow what matters.</h1>
           <p className="mt-4 text-[17px] leading-relaxed text-muted-strong">Keep the important things in good shape. Greenhouse helps you see what’s thriving and what could use your attention.</p>
           <div className="mt-auto space-y-2 pt-10">
-            <Primary onClick={() => setStep(2)}>Create your greenhouse</Primary>
+            <Primary onClick={() => router.push("/intro")}>Create your greenhouse</Primary>
             <button
               className="h-12 w-full rounded-full text-[15px] text-forest"
               onClick={() => {
@@ -111,6 +112,25 @@ function Onboarding() {
             >
               Explore an example greenhouse
             </button>
+            <label className="block cursor-pointer py-1 text-center text-[13px] text-muted-strong underline-offset-4 hover:underline">
+              Restore from a backup
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const r = parseBackup(await f.text());
+                  if (!r.ok) {
+                    window.alert(r.error);
+                    return;
+                  }
+                  app.importState(r.state);
+                  router.push(r.state.settings.defaultView === "garden" ? "/garden" : "/map");
+                }}
+              />
+            </label>
           </div>
         </section>
       )}
@@ -359,7 +379,7 @@ function Onboarding() {
                   <div className="mt-2 flex gap-0.5 overflow-x-auto pb-1">
                     {(Object.keys(PLANT_LABELS) as PlantKind[]).map((k) => (
                       <button key={k} onClick={() => patch(p.key, (x) => ({ ...x, plant: k }))} aria-pressed={p.plant === k} className={`flex shrink-0 flex-col items-center rounded-2xl border px-0.5 pb-1 text-[10px] ${p.plant === k ? "border-forest bg-sage-100" : "border-transparent"}`}>
-                        <Plant kind={k} score={85} band="thriving" id={p.key} size={46} animate={false} />
+                        <SpeciesPlant kind={k} score={85} band="thriving" id={`${p.key}-${k}`} size={46} />
                         {PLANT_LABELS[k]}
                       </button>
                     ))}
@@ -395,12 +415,12 @@ function Onboarding() {
             </button>
             <button onClick={() => setView("garden")} aria-pressed={view === "garden"} className={`w-full rounded-3xl border p-4 text-left ${view === "garden" ? "border-forest bg-white" : "border-forest/10 bg-white/60"}`}>
               <div className="glasshouse flex justify-around rounded-2xl" aria-hidden>
-                <Plant kind="olive" score={92} band="thriving" id="v1" size={64} animate={false} />
-                <Plant kind="fern" score={50} band="worth-attention" id="v2" size={64} animate={false} />
-                <Plant kind="ivy" score={75} band="doing-well" id="v3" size={64} animate={false} />
+                <SpeciesPlant kind="olive" score={95} band="thriving" id="v1" size={64} />
+                <SpeciesPlant kind="fern" score={30} band="needs-attention" id="v2" size={64} potIndex={3} />
+                <SpeciesPlant kind="ivy" score={75} band="doing-well" id="v3" size={64} potIndex={5} />
               </div>
               <h2 className="mt-3 font-display text-[24px] text-forest">The Garden</h2>
-              <p className="text-[13px] text-muted-strong">An organic collection of illustrated plants, one for each habit.</p>
+              <p className="text-[13px] text-muted-strong">A walk-in greenhouse. Each habit has a bench, and every week you reach its goal adds a plant that keeps growing.</p>
             </button>
           </div>
           <div className="mt-auto pt-8">

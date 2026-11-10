@@ -79,4 +79,10 @@ body {
 
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
-:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+:focus-visible { outline: 2.5px solid #23382F; outline-offset: 2px; border-radius: 6px; }
+
+/* pause plant animations while the greenhouse is off screen or being dragged */
+.gh-paused .gh-sway,
+.gh-paused .gh-grow {
+  animation-play-state: paused;
+}

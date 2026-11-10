@@ -23,11 +23,22 @@ export function PanZoom({
   /** css px; the box is as wide as its parent */
   viewportHeight: (boxWidth: number) => number;
   initialFocusX?: number;
-  children: React.ReactNode;
+  /** content, or a render function that receives the current zoom (css px per scene unit) */
+  children: React.ReactNode | ((view: { k: number; x: number; y: number; w: number; h: number; moving: boolean }) => React.ReactNode);
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [view, setView] = useState<View | null>(null);
+  const [active, setActive] = useState(true);
+  const [dragging, setDragging] = useState(false);
+  // pause plant animations while off screen or while the user is dragging
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setActive(e.isIntersecting), { threshold: 0.05 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ moved: boolean; start?: View; dist?: number; mid?: { x: number; y: number }; origin?: { x: number; y: number } }>({ moved: false });
 
@@ -118,6 +129,7 @@ export function PanZoom({
       const dy = p.y - g.origin.y;
       if (!g.moved && Math.hypot(dx, dy) > 6) {
         g.moved = true;
+        setDragging(true);
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }
       if (g.moved) setView(clamp({ ...g.start, x: g.start.x + dx, y: g.start.y + dy }));
@@ -126,12 +138,14 @@ export function PanZoom({
       const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       g.moved = true;
+      if (!dragging) setDragging(true);
       const k = g.start.k * (dist / g.dist);
       setView(clamp({ k, x: mid.x - ((g.mid.x - g.start.x) * k) / g.start.k, y: mid.y - ((g.mid.y - g.start.y) * k) / g.start.k }));
     }
   };
   const onUp = (e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) setDragging(false);
     if (pointers.current.size === 1) {
       const [p] = [...pointers.current.values()];
       gesture.current = { moved: true, start: view ?? undefined, origin: p };
@@ -150,16 +164,33 @@ export function PanZoom({
     <div className="relative">
       <div
         ref={box}
-        className="relative touch-none select-none overflow-hidden"
+        className={`relative touch-none select-none overflow-hidden ${active && !dragging ? "" : "gh-paused"}`}
         style={{ height: size.h || undefined, cursor: "grab" }}
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
         onClickCapture={onClickCapture}
+        tabIndex={0}
+        role="group"
+        aria-label="Greenhouse view. Use arrow keys to look around, plus and minus to zoom."
+        onKeyDown={(e) => {
+          const step = 60;
+          const moves: Record<string, [number, number]> = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+          if (moves[e.key] && view) {
+            e.preventDefault();
+            setView(clamp({ ...view, x: view.x + moves[e.key][0], y: view.y + moves[e.key][1] }));
+          } else if (e.key === "+" || e.key === "=") {
+            e.preventDefault();
+            zoomAt(1.25, size.w / 2, size.h / 2);
+          } else if (e.key === "-") {
+            e.preventDefault();
+            zoomAt(0.8, size.w / 2, size.h / 2);
+          }
+        }}
       >
         {view && (
-          <div style={{ width, height, transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, transformOrigin: "0 0", willChange: "transform" }}>{children}</div>
+          <div style={{ position: "relative", width, height, transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.k})`, transformOrigin: "0 0", willChange: "transform" }}>{typeof children === "function" ? children({ ...view, w: size.w, h: size.h, moving: dragging }) : children}</div>
         )}
       </div>
       <div className="absolute bottom-3 right-3 flex gap-1.5">
