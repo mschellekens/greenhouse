@@ -3,10 +3,10 @@
  * and logging activity. Principle: never invent data. If a number, a target,
  * or the habit itself is unclear, return a follow-up question instead.
  */
-import type { Habit, Period } from "../types";
+import type { Habit } from "../types";
 import { addDays, instantFor, weekday } from "../dates";
-import { ARCHETYPES, type Archetype } from "./catalog";
-import type { HabitParser, LogHints, LogParseResult, ParseContext, ParsedLog, ProposedHabit } from "./types";
+import { ARCHETYPES, type Archetype, type ArchetypeOption } from "./catalog";
+import type { GoalOption, HabitParser, LogHints, LogParseResult, ParseContext, ParsedLog, ProposedHabit } from "./types";
 
 const NUMBER_WORDS: Record<string, number> = {
   a: 1, an: 1, one: 1, single: 1, two: 2, couple: 2, pair: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
@@ -33,16 +33,23 @@ function titleCase(s: string): string {
 function splitClauses(text: string): string[] {
   return text
     .toLowerCase()
-    .replace(/[.!?]+/g, ",")
+    .replace(/[.!?]+(?=\s|$)/g, ",")
     .split(/,|;|\n|\band also\b|\band\b|\bplus\b/)
     .map((s) => s.replace(/^\s*(i want to|i'd like to|i would like to|i wanna|want to|to|also|and|i)\s+/g, "").trim())
     .filter((s) => s.length > 1);
 }
 
-function periodFrom(clause: string): Period | undefined {
-  if (/\b(a|per|each|every|\/)\s*day\b|\bdaily\b|\bevery ?day\b|\bnightly\b/.test(clause)) return "day";
-  if (/\b(a|per|each|every|\/)\s*week\b|\bweekly\b/.test(clause)) return "week";
-  if (/\b(a|per|each|every|\/)\s*month\b|\bmonthly\b/.test(clause)) return "month";
+/** Rolling window in days from phrases like "a week", "every two weeks", "daily". */
+function windowFrom(clause: string): number | undefined {
+  const every = clause.match(new RegExp(`\\bevery\\s+${NUM}\\s+(days?|weeks?)\\b`));
+  if (every) {
+    const n = toNumber(every[1]) ?? 1;
+    return /week/.test(every[2]) ? n * 7 : n;
+  }
+  if (/\b(fortnight|fortnightly|every other week|biweekly)\b/.test(clause)) return 14;
+  if (/\b(a|per|each|every|\/)\s*day\b|\bdaily\b|\bevery ?day\b|\bnightly\b|\b(a|per|each|every)\s*night\b/.test(clause)) return 1;
+  if (/\b(a|per|each|every|\/)\s*week\b|\bweekly\b/.test(clause)) return 7;
+  if (/\b(a|per|each|every|\/)\s*month\b|\bmonthly\b/.test(clause)) return 30;
   return undefined;
 }
 
@@ -52,7 +59,7 @@ function timesFrom(clause: string): number | undefined {
   if (/\bthrice\b/.test(clause)) return 3;
   const m = clause.match(new RegExp(`\\b${NUM}\\s*(?:times|x|×|sessions|days)\\b`));
   if (m) return toNumber(m[1]);
-  if (/\bevery ?day\b|\bdaily\b/.test(clause)) return 1;
+  if (/\bevery ?day\b|\bdaily\b|\bevery\s+\w+\s+(days?|weeks?)\b|\bfortnightly\b/.test(clause)) return 1;
   return undefined;
 }
 
@@ -63,8 +70,11 @@ function amountFrom(clause: string): { n: number; unit: string } | undefined {
   if (n === undefined) return undefined;
   let unit = m[2];
   if (/^h/.test(unit)) {
-    n *= 60;
-    unit = "min";
+    if (/sleep/.test(clause)) unit = "h";
+    else {
+      n *= 60;
+      unit = "min";
+    }
   } else if (/^min/.test(unit)) unit = "min";
   else if (/^page/.test(unit)) unit = "pages";
   else if (/^(drink|glass)/.test(unit)) unit = "drinks";
@@ -72,95 +82,121 @@ function amountFrom(clause: string): { n: number; unit: string } | undefined {
   return { n, unit };
 }
 
+const toOption = (o: ArchetypeOption): GoalOption => ({
+  label: o.label,
+  patch: { target: o.target, windowDays: o.windowDays, type: o.type, unit: o.unit, quantityMode: o.quantityMode ?? (o.type === "quantity" ? "total" : undefined) },
+});
+
 export function proposeGoals(text: string): ProposedHabit[] {
   const clauses = splitClauses(text);
   const out: ProposedHabit[] = [];
-  let lastPeriod: Period | undefined;
+  let lastWindow: number | undefined;
   clauses.forEach((clause, i) => {
     const arche: Archetype | undefined = ARCHETYPES.find((a) => a.match.test(clause));
-    const explicitPeriod = periodFrom(clause);
-    if (explicitPeriod) lastPeriod = explicitPeriod;
-    const reduce = /\b(less|fewer|cut (down|back)|reduce|limit|moderate)\b/.test(clause);
-    const quit = /\b(quit|stop|no more|avoid|give up|zero)\b/.test(clause);
+    const explicitWindow = windowFrom(clause);
+    if (explicitWindow) lastWindow = explicitWindow;
+    const reduce = /\b(less|fewer|cut (down|back)|reduce|limit|moderate|no more than|at most)\b/.test(clause);
+    const quit = /\b(quit|stop|avoid|give up|zero)\b/.test(clause) || /^no\s/.test(clause);
     const times = timesFrom(clause);
     const amount = amountFrom(clause);
     const assumptions: string[] = [];
+    const cleaned = titleCase(clause.replace(/\b(more|less|often|regularly|a bit|some)\b/g, "").replace(/\s+/g, " ").trim() || clause);
+    const name = arche?.name ?? cleaned;
     const base = {
       key: `p${i}-${clause.slice(0, 12)}`,
-      name: arche?.name ?? titleCase(clause.replace(/\b(more|less|often|regularly)\b/g, "").trim() || clause),
-      category: arche?.category ?? "Other",
-      plant: arche?.plant ?? "fern",
-      keywords: arche?.keywords ?? clause.split(/\s+/).filter((w) => w.length > 3),
+      name,
+      emoji: arche?.emoji,
+      category: arche?.category,
+      plant: arche?.plant ?? (["fern", "ficus", "ivy", "lavender"] as const)[i % 4],
+      keywords: [...(arche?.keywords ?? clause.split(/\s+/).filter((w) => w.length > 3))],
       sourceText: clause,
-    } as const;
+    };
 
-    // Limits / avoidance
+    // Do less: limits / avoidance
     if (reduce || quit || arche?.type === "limit") {
       const unit = amount?.unit ?? arche?.unit ?? "times";
       if (quit) {
-        out.push({ ...base, keywords: [...base.keywords], type: "limit", goal: { period: "week", target: 0, unit }, assumptions: ["Avoid completely. Log slips honestly; unlogged days stay unknown."] });
+        out.push({ ...base, type: "limit", direction: "less", goal: { windowDays: 7, target: 0, unit }, assumptions: ["Avoid completely. Unlogged days stay unknown unless you mark logging complete."] });
         return;
       }
-      const target = amount?.n ?? (times !== undefined && explicitPeriod ? times : undefined);
+      const target = amount?.n ?? (times !== undefined && explicitWindow ? times : undefined);
       out.push({
         ...base,
-        keywords: [...base.keywords],
         type: "limit",
-        goal: { period: explicitPeriod ?? "week", target, unit },
+        direction: "less",
+        goal: { windowDays: explicitWindow ?? 7, target, unit },
         assumptions,
         followUp:
           target === undefined
             ? {
-                question: arche?.question ?? `What limit feels right for ${base.name.toLowerCase()}?`,
+                short: "Needs a limit",
+                question: arche?.ask ?? `what limit would feel right for ${name.toLowerCase()}`,
                 options: (arche?.options ?? [
-                  { label: "Up to 2 a week", target: 2, period: "week" as Period },
-                  { label: "Up to 4 a week", target: 4, period: "week" as Period },
-                  { label: "None at all", target: 0, period: "week" as Period },
-                ]).map((o) => ({ label: o.label, patch: { target: o.target, period: o.period, unit } })),
+                  { label: "At most 2 a week", target: 2, windowDays: 7 },
+                  { label: "At most 4 a week", target: 4, windowDays: 7 },
+                  { label: "None at all", target: 0, windowDays: 7 },
+                ]).map(toOption),
               }
             : undefined,
       });
       return;
     }
 
-    // Quantities: "read 20 minutes a day"
+    // Quantities: "read 20 minutes a day", "sleep 7.5 hours a night"
     if (amount && amount.unit !== "drinks") {
-      const period = explicitPeriod ?? lastPeriod;
-      if (!explicitPeriod) assumptions.push(`Assumed per ${period ?? "day"}. Change it if that's wrong.`);
-      out.push({ ...base, keywords: [...base.keywords], type: "quantity", goal: { target: amount.n, unit: amount.unit, period: period ?? "day", quantityMode: "total" }, assumptions });
+      const windowDays = explicitWindow ?? lastWindow ?? 1;
+      if (!explicitWindow) assumptions.push(`Assumed ${windowDays === 1 ? "per day" : `per ${windowDays} days`}. Change it if that's wrong.`);
+      const average = amount.unit === "h";
+      out.push({ ...base, type: "quantity", direction: arche?.direction ?? "more", goal: { target: amount.n, unit: amount.unit, windowDays, quantityMode: average ? "average" : "total" }, assumptions });
       return;
     }
 
-    // Frequencies: "three times a week", "twice"
+    // Frequencies: "three times a week", "twice", "every 14 days"
     if (times !== undefined) {
-      let period = explicitPeriod;
-      if (!period) {
-        period = lastPeriod ?? "week";
-        assumptions.push(`Assumed ${times === 2 ? "twice" : `${times}×`} per ${period}, like the rest. Change it if that's wrong.`);
+      let windowDays = explicitWindow;
+      if (!windowDays) {
+        windowDays = lastWindow ?? 7;
+        assumptions.push(`Assumed ${times === 2 ? "twice" : `${times} times`} in ${windowDays} days, like the rest. Change it if that's wrong.`);
       }
-      out.push({ ...base, keywords: [...base.keywords], type: "frequency", goal: { target: times, period }, assumptions });
+      out.push({ ...base, type: "frequency", direction: arche?.direction ?? "more", goal: { target: times, windowDays, unit: arche?.unit }, assumptions });
       return;
     }
 
-    // Vague: "read more", "meditate" -> ask, don't invent a target.
-    const type = arche?.type ?? "frequency";
+    // Vague: "read more" -> ask, don't invent a target.
     out.push({
       ...base,
-      keywords: [...base.keywords],
-      type,
-      goal: { period: lastPeriod ?? "week", unit: arche?.unit },
+      type: arche?.type ?? "frequency",
+      direction: arche?.direction ?? "more",
+      goal: { windowDays: lastWindow ?? 7, unit: arche?.unit },
       assumptions,
       followUp: {
-        question: arche?.question ?? `How often would you like to ${clause.replace(/\b(more|often)\b/g, "").trim()}?`,
+        short: "Needs a frequency",
+        question: arche?.ask ?? `how often would you like to ${clause.replace(/\b(more|often)\b/g, "").trim()}`,
         options: (arche?.options ?? [
-          { label: "Every day", target: 1, period: "day" as Period },
-          { label: "3× a week", target: 3, period: "week" as Period },
-          { label: "Once a week", target: 1, period: "week" as Period },
-        ]).map((o) => ({ label: o.label, patch: { target: o.target, period: o.period, type: o.type, unit: o.unit ?? arche?.unit, quantityMode: o.type === "quantity" ? (o.unit === "h" ? "average" : "total") : undefined } })),
+          { label: "Every day", target: 1, windowDays: 1 },
+          { label: "3 times a week", target: 3, windowDays: 7 },
+          { label: "Once a week", target: 1, windowDays: 7 },
+        ]).map(toOption),
       },
     });
   });
   return out;
+}
+
+/** Build a habit from a suggestion chip or custom name (manual creation). */
+export function proposeFromName(name: string, key: string): ProposedHabit {
+  const arche = ARCHETYPES.find((a) => a.id === name) ?? ARCHETYPES.find((a) => a.match.test(name.toLowerCase()));
+  const p = proposeGoals(arche ? arche.name : name)[0];
+  const display = arche?.name ?? titleCase(name);
+  return { ...(p ?? proposeGoals("x")[0]), key, name: display, sourceText: display };
+}
+
+/** Combine follow-ups into one conversational question, e.g. "How often would you like to read, and what limit would feel right for alcohol?" */
+export function combinedQuestion(proposals: ProposedHabit[]): string | null {
+  const qs = proposals.filter((p) => p.followUp && p.goal.target === undefined).map((p) => p.followUp!.question);
+  if (!qs.length) return null;
+  const joined = qs.length === 1 ? qs[0] : `${qs.slice(0, -1).join(", ")}, and ${qs[qs.length - 1]}`;
+  return `${joined.charAt(0).toUpperCase()}${joined.slice(1)}?`;
 }
 
 // ---------------------------------------------------------------- logs
@@ -276,7 +312,7 @@ export function parseLogText(text: string, ctx: ParseContext, hints: LogHints = 
       if (!active.length) return { kind: "none", message: "There are no habits yet. Plant one first, then log it." };
       return {
         kind: "followup",
-        question: "I couldn't tell which habit that's for. Which one should it count toward?",
+        question: "Which habit should that count toward?",
         options: active.map((h) => ({ label: h.name, hints: { ...hints, habitId: h.id } })),
         hints,
       };
@@ -286,7 +322,7 @@ export function parseLogText(text: string, ctx: ParseContext, hints: LogHints = 
     if (tied.length > 1) {
       return {
         kind: "followup",
-        question: `Should that count as ${tied.map((m) => m.habit.name).join(" or ")}?`,
+        question: tied.length === 2 ? `Was that ${tied[0].habit.name.toLowerCase()} or ${tied[1].habit.name.toLowerCase()}?` : `Which habit was that for?`,
         options: tied.map((m) => ({ label: m.habit.name, hints: { ...hints, habitId: m.habit.id } })),
         hints,
       };
@@ -307,7 +343,7 @@ export function parseLogText(text: string, ctx: ParseContext, hints: LogHints = 
   if (need && !qty) {
     return {
       kind: "followup",
-      question: habit.type === "limit" ? `How many ${need.unit || "times"}?` : `How much ${habit.name.toLowerCase()}? (${need.unit || "amount"})`,
+      question: habit.type === "limit" ? `How many ${need.unit || "times"} was that?` : `How much ${habit.name.toLowerCase()} was that? (${need.unit || "amount"})`,
       options: presetsFor(need.unit).map((n) => ({ label: `${n} ${need.unit}`.trim(), hints: { habitId: habit!.id, quantity: n } })),
       hints: { ...hints, habitId: habit.id },
     };

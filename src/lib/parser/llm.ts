@@ -6,6 +6,26 @@
  */
 import type { HabitParser, LogHints, LogParseResult, ParseContext, ProposedHabit } from "./types";
 import { RuleParser, toNumber } from "./rules";
+import type { PlantKind } from "../types";
+
+const PLANTS: PlantKind[] = ["olive", "fern", "ficus", "monstera", "lavender", "ivy", "rosemary"];
+
+/** Coerce an LLM proposal into the app's shape, or drop it. */
+export function normaliseProposal(h: ProposedHabit, i: number): ProposedHabit | null {
+  if (!h || typeof h.name !== "string" || !["frequency", "limit", "quantity"].includes(h.type)) return null;
+  const windowDays = [1, 7, 14, 30].includes(Number(h.goal?.windowDays)) ? Number(h.goal.windowDays) : 7;
+  const direction = h.type === "limit" ? "less" : h.direction === "maintain" ? "maintain" : "more";
+  return {
+    ...h,
+    key: h.key ?? `llm${i}`,
+    direction,
+    plant: PLANTS.includes(h.plant) ? h.plant : PLANTS[i % PLANTS.length],
+    goal: { ...h.goal, windowDays, target: typeof h.goal?.target === "number" && h.goal.target >= 0 ? h.goal.target : undefined },
+    assumptions: h.assumptions ?? [],
+    keywords: h.keywords ?? [],
+    sourceText: h.sourceText ?? "",
+  };
+}
 
 export class LlmParser implements HabitParser {
   readonly name = "llm";
@@ -21,7 +41,9 @@ export class LlmParser implements HabitParser {
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { habits?: ProposedHabit[] };
       if (!Array.isArray(data.habits) || !data.habits.length) throw new Error("empty");
-      return data.habits.map((h, i) => ({ ...h, key: h.key ?? `llm${i}`, assumptions: h.assumptions ?? [], keywords: h.keywords ?? [] }));
+      const out = data.habits.map((h, i) => normaliseProposal(h, i)).filter((h): h is ProposedHabit => h !== null);
+      if (!out.length) throw new Error("invalid");
+      return out;
     } catch {
       return this.fallback.parseGoals(text);
     }

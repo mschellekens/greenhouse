@@ -4,6 +4,7 @@
  *  unknown  -> seedling; paused -> desaturated and still.
  * Everything is deterministic per habit id so plants don't reshuffle.
  */
+import { BAND_LABEL } from "@/lib/attention";
 import React from "react";
 import type { Band, PlantKind } from "@/lib/types";
 
@@ -177,8 +178,8 @@ function Monstera({ v, r }: P) {
     const slits = Array.from({ length: holes }, (_, k) => {
       const t = (k + 1) / (holes + 1);
       return [
-        <path key={`sl${k}a`} d={`M${-S * 0.95},${-S * 0.2 + t * S * 1.4} L${-S * 0.35},${-S * 0.05 + t * S * 1.1}`} stroke="var(--plant-bg, #FBF8F2)" strokeWidth={2.4} strokeLinecap="round" />,
-        <path key={`sl${k}b`} d={`M${S * 0.95},${-S * 0.2 + t * S * 1.4} L${S * 0.35},${-S * 0.05 + t * S * 1.1}`} stroke="var(--plant-bg, #FBF8F2)" strokeWidth={2.4} strokeLinecap="round" />,
+        <path key={`sl${k}a`} d={`M${-S * 0.95},${-S * 0.2 + t * S * 1.4} L${-S * 0.35},${-S * 0.05 + t * S * 1.1}`} stroke="var(--plant-bg, #F7F6F0)" strokeWidth={2.4} strokeLinecap="round" />,
+        <path key={`sl${k}b`} d={`M${S * 0.95},${-S * 0.2 + t * S * 1.4} L${S * 0.35},${-S * 0.05 + t * S * 1.1}`} stroke="var(--plant-bg, #F7F6F0)" strokeWidth={2.4} strokeLinecap="round" />,
       ];
     }).flat();
     out.push(
@@ -194,64 +195,114 @@ function Monstera({ v, r }: P) {
   return <>{out}</>;
 }
 
-function Snake({ v, r }: P) {
-  const n = 3 + Math.round(v * 4);
+function Ficus({ v, r }: P) {
+  const healthy = "#355F45";
+  const light = "#4E7D5C";
+  const dry = "#B9A06A";
+  const n = 4 + Math.round(v * 6);
+  const H = 104 * (0.85 + 0.15 * v);
   const out: React.ReactNode[] = [];
+  const lean = (1 - v) * 10;
+  const top = { x: BASE_X + lean, y: BASE_Y - H };
+  out.push(<path key="stem" d={`M${BASE_X},${BASE_Y} C${BASE_X - 3},${BASE_Y - H * 0.4} ${BASE_X + lean * 0.4},${BASE_Y - H * 0.7} ${top.x},${top.y}`} stroke="#6E5B44" strokeWidth={3.4} fill="none" strokeLinecap="round" />);
   for (let i = 0; i < n; i++) {
-    const bx = BASE_X + (i - (n - 1) / 2) * 9 + (r() - 0.5) * 4;
-    const H = (70 + r() * 35) * (0.7 + 0.3 * v);
-    const W = 7 + r() * 3;
-    const lean = (i - (n - 1) / 2) * 3;
-    const fold = (1 - v) * (0.3 + r() * 0.4); // low vitality -> blades fold over
-    const side = i % 2 ? 1 : -1;
-    const tipX = bx + lean + side * fold * 50;
-    const tipY = BASE_Y - H * (1 - fold * 0.6);
-    const midX = bx + lean * 0.5;
-    const midY = BASE_Y - H * 0.6;
-    const col = mix("#A39158", i % 2 ? "#3F6B4A" : "#4D7A54", Math.pow(v, 0.8));
-    const edge = mix("#C9B46A", "#D8C86A", v);
-    const d = `M${bx - W / 2},${BASE_Y} Q${midX - W},${midY} ${tipX},${tipY} Q${midX + W},${midY} ${bx + W / 2},${BASE_Y}Z`;
-    out.push(<path key={`b${i}`} d={d} fill={col} stroke={edge} strokeWidth={1.3} />);
-    for (let k = 1; k < 6; k++) {
-      const t = k / 6;
-      const y = BASE_Y - (BASE_Y - midY) * t * 1.3;
-      if (y < tipY + 6) continue;
-      out.push(<path key={`band${i}-${k}`} d={`M${bx - W * 0.4 + (midX - bx) * t},${y} q${W * 0.4},-3 ${W * 0.8},0`} stroke={mix("#8A7A48", "#2E5238", v)} strokeWidth={1} fill="none" opacity={0.7} />);
+    const t = 0.25 + (i / n) * 0.75;
+    const x = BASE_X + (top.x - BASE_X) * t * t;
+    const y = BASE_Y - H * t;
+    const side = i % 2 === 0 ? -1 : 1;
+    const up = side < 0 ? -140 : -40;
+    const ang = droop(up + (r() - 0.5) * 16, (1 - v) * 0.6 + (t < 0.4 ? 0.15 : 0));
+    const S = (17 + r() * 5) * (0.8 + 0.2 * v) * (1 - t * 0.25);
+    const yellow = i === 0 && v < 0.55;
+    const col = yellow ? "#C9B26A" : mix(dry, i % 2 ? light : healthy, Math.pow(v, 0.8));
+    out.push(
+      <g key={`l${i}`} transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${ang.toFixed(1)})`}>
+        <path d={`M0,0 L5,0`} stroke="#6E5B44" strokeWidth={1.4} />
+        <path d={`M4,0 C${S * 0.35},${-S * 0.55} ${S * 1.2},${-S * 0.5} ${S * 1.6},0 C${S * 1.2},${S * 0.5} ${S * 0.35},${S * 0.55} 4,0Z`} fill={col} />
+        <path d={`M5,0 L${S * 1.5},0`} stroke={mix("#CDBF8C", "#86AE8E", v)} strokeWidth={0.8} />
+      </g>,
+    );
+  }
+  // new sheath at the top when healthy
+  if (v > 0.75) out.push(<path key="bud" d={leaf(12, 2.4)} transform={`translate(${top.x},${top.y}) rotate(-92)`} fill="#B3604F" opacity={0.85} />);
+  return <>{out}</>;
+}
+
+const IVY_LEAF = (s: number) =>
+  `M0,0 C${-3 * s},${-1.5 * s} ${-6.5 * s},${-2 * s} ${-7 * s},${-6 * s} C${-4.2 * s},${-6.2 * s} ${-3.4 * s},${-8.6 * s} 0,${-12 * s} C${3.4 * s},${-8.6 * s} ${4.2 * s},${-6.2 * s} ${7 * s},${-6 * s} C${6.5 * s},${-2 * s} ${3 * s},${-1.5 * s} 0,0Z`;
+
+function Ivy({ v, r, part = "upright" }: P & { part?: "upright" | "trailing" }) {
+  const healthy = "#3E6A4C";
+  const light = "#6E9A6A";
+  const dry = "#B9A06A";
+  const out: React.ReactNode[] = [];
+  // Upright vines arch out of the soil; trailing vines spill over the rim and hang down the pot.
+  const upright = 2 + Math.round(v * 2);
+  const trailing = 2 + Math.round(v * 2);
+  type Pt = [number, number];
+  const bez = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
+    const u = 1 - t;
+    return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]];
+  };
+  const vine = (key: string, pts: [Pt, Pt, Pt, Pt], leavesN: number) => {
+    out.push(<path key={`v${key}`} d={`M${pts[0][0]},${pts[0][1]} C${pts[1][0]},${pts[1][1]} ${pts[2][0]},${pts[2][1]} ${pts[3][0]},${pts[3][1]}`} stroke={mix("#9C8A5A", "#5C7A4E", v)} strokeWidth={1.3} fill="none" strokeLinecap="round" />);
+    for (let i = 1; i <= leavesN; i++) {
+      const t = i / leavesN;
+      const [x, y] = bez(...pts, t);
+      const [x2, y2] = bez(...pts, Math.min(1, t + 0.02));
+      const tang = (Math.atan2(y2 - y, x2 - x) * 180) / Math.PI;
+      const side = i % 2 ? 1 : -1;
+      const droop = (1 - v) * 35;
+      const ang = tang + side * (70 - droop * 0.3) + 90 + droop * side * 0.5;
+      const size = (0.75 + r() * 0.3) * (0.65 + 0.35 * v) * (i === leavesN ? 0.8 : 1);
+      const col = mix(dry, i % 3 === 0 ? light : healthy, Math.pow(v, 0.8));
+      out.push(<path key={`${key}-${i}`} d={IVY_LEAF(size)} transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${ang.toFixed(1)})`} fill={col} stroke={mix("#C9B98A", "#9FC09A", v)} strokeWidth={0.4} />);
     }
+  };
+  for (let k = 0; part === "upright" && k < upright; k++) {
+    const side = k % 2 === 0 ? -1 : 1;
+    const h = (40 + r() * 16) * (0.55 + 0.45 * v);
+    const spread = (14 + k * 7) * side;
+    const sx = BASE_X + side * 4;
+    vine(`u${k}`, [[sx, BASE_Y - 2], [sx + spread * 0.2, BASE_Y - h * 0.6], [sx + spread * 0.8, BASE_Y - h], [sx + spread, BASE_Y - h * (0.85 - (1 - v) * 0.3)]], 4 + Math.round(v * 3));
+  }
+  for (let k = 0; part === "trailing" && k < trailing; k++) {
+    const side = k % 2 === 0 ? -1 : 1;
+    const len = (34 + k * 9 + r() * 8) * (0.5 + 0.5 * v);
+    const sx = BASE_X + side * (24 + (k >> 1) * 6);
+    const ex = BASE_X + side * (46 + (k >> 1) * 5);
+    vine(`t${k}`, [[sx, BASE_Y - 3], [sx + side * 14, BASE_Y - 10], [ex + side * 2, BASE_Y + len * 0.3], [ex, BASE_Y + len]], 4 + Math.round(v * 3));
   }
   return <>{out}</>;
 }
 
-function Succulent({ v, r }: P) {
+function Rosemary({ v, r }: P) {
+  const needle = mix("#A99A6E", "#4F6F57", Math.pow(v, 0.8));
+  const needleLight = mix("#BFB389", "#7E9C82", Math.pow(v, 0.8));
+  const stems = 5 + Math.round(v * 6);
   const out: React.ReactNode[] = [];
-  const cx = BASE_X;
-  const cy = BASE_Y - 10;
-  const rings = [
-    { n: 9, len: 34, w: 9 },
-    { n: 7, len: 26, w: 8 },
-    { n: 5, len: 17, w: 6.5 },
-  ];
-  const plump = 0.55 + 0.45 * v;
-  rings.forEach((ring, ri) => {
-    const count = Math.max(3, Math.round(ring.n * (0.6 + 0.4 * v)));
+  for (let i = 0; i < stems; i++) {
+    const bx = BASE_X + (r() - 0.5) * 26;
+    const a = -90 + (i - stems / 2) * (6 + (1 - v) * 6) + (r() - 0.5) * 6;
+    const L = (66 + r() * 34) * (0.8 + 0.2 * v);
+    const sag = (1 - v) * 16 * (a < -90 ? -1 : 1);
+    const tx = bx + Math.cos(rad(a)) * L + sag;
+    const ty = BASE_Y + Math.sin(rad(a)) * L + Math.abs(sag) * 0.5;
+    const cx = (bx + tx) / 2 + sag * 0.3;
+    const cy = (BASE_Y + ty) / 2;
+    out.push(<path key={`s${i}`} d={`M${bx},${BASE_Y} Q${cx},${cy} ${tx},${ty}`} stroke="#7A6A4E" strokeWidth={1.3} fill="none" strokeLinecap="round" />);
+    const count = Math.round(8 + v * 14);
     for (let k = 0; k < count; k++) {
-      const a = -180 + (180 * (k + 0.5)) / count + (r() - 0.5) * 6;
-      const tilt = a + (ri === 0 ? (1 - v) * (a < -90 ? -25 : 25) : 0);
-      const L = ring.len * (0.8 + 0.2 * v);
-      const W = ring.w * plump;
-      const base = mix("#A8956A", "#7FA896", Math.pow(v, 0.8));
-      const tip = mix("#8C6A44", "#D58C8F", v);
-      out.push(
-        <g key={`r${ri}-${k}`} transform={`translate(${cx},${cy - ri * 6}) rotate(${tilt}) scale(1,${0.85})`}>
-          <path d={`M0,0 C${L * 0.3},${-W} ${L * 0.85},${-W * 0.7} ${L},0 C${L * 0.85},${W * 0.7} ${L * 0.3},${W} 0,0Z`} fill={base} />
-          <path d={`M${L * 0.8},${-W * 0.35} Q${L},0 ${L * 0.8},${W * 0.35}`} fill="none" stroke={tip} strokeWidth={2} strokeLinecap="round" />
-        </g>,
-      );
+      const t = 0.18 + (k / count) * 0.8;
+      // point on quadratic
+      const px = (1 - t) * (1 - t) * bx + 2 * (1 - t) * t * cx + t * t * tx;
+      const py = (1 - t) * (1 - t) * BASE_Y + 2 * (1 - t) * t * cy + t * t * ty;
+      const side = k % 2 ? 1 : -1;
+      const na = a + side * (40 + (1 - v) * 30);
+      const len = 6 * (1 - t * 0.35);
+      out.push(<line key={`n${i}-${k}`} x1={px} y1={py} x2={px + Math.cos(rad(na)) * len} y2={py + Math.sin(rad(na)) * len} stroke={k % 3 ? needle : needleLight} strokeWidth={1.5} strokeLinecap="round" />);
     }
-  });
-  if (v > 0.85) {
-    out.push(<path key="stalk" d={`M${cx + 6},${cy - 14} q12,-30 26,-38`} stroke="#9AA77A" strokeWidth={1.6} fill="none" />);
-    [0, 1, 2].forEach((k) => out.push(<circle key={`bud${k}`} cx={cx + 22 + k * 5} cy={cy - 44 - k * 4} r={2.6} fill="#E3925A" />));
+    if (v > 0.78 && i % 2 === 0) out.push(<circle key={`f${i}`} cx={tx - 2} cy={ty + 6} r={1.9} fill="#A9BCDF" />);
   }
   return <>{out}</>;
 }
@@ -269,19 +320,21 @@ function Seedling() {
 const KINDS: Record<PlantKind, (p: P) => React.ReactNode> = {
   olive: Olive,
   fern: Fern,
-  lavender: Lavender,
+  ficus: Ficus,
   monstera: Monstera,
-  snake: Snake,
-  succulent: Succulent,
+  lavender: Lavender,
+  ivy: Ivy,
+  rosemary: Rosemary,
 };
 
 export const PLANT_LABELS: Record<PlantKind, string> = {
   olive: "Olive tree",
   fern: "Fern",
-  lavender: "Lavender",
+  ficus: "Ficus",
   monstera: "Monstera",
-  snake: "Snake plant",
-  succulent: "Echeveria",
+  lavender: "Lavender",
+  ivy: "Ivy",
+  rosemary: "Rosemary",
 };
 
 export function Plant({
@@ -301,7 +354,8 @@ export function Plant({
   animate?: boolean;
   className?: string;
 }) {
-  const v = score === null ? 0.5 : score / 100;
+  // Plants never die: the lowest condition still shows a living, recoverable plant.
+  const v = score === null ? 0.5 : 0.12 + 0.88 * (score / 100);
   const r = rng(`${id}:${kind}`);
   const Kind = KINDS[kind];
   const seedling = band === "unknown";
@@ -315,25 +369,32 @@ export function Plant({
       height={(size * 204) / 160}
       className={className}
       role="img"
-      aria-label={`${PLANT_LABELS[kind]}, ${band}${score !== null ? `, ${score} of 100` : ""}`}
+      aria-label={`${PLANT_LABELS[kind]}, ${BAND_LABEL[band]}`}
       style={paused ? { filter: "saturate(0.35) brightness(1.05)" } : undefined}
     >
-      <ellipse cx={100} cy={236} rx={52} ry={4} fill="#1B1F1C" opacity={0.08} />
+      <ellipse cx={100} cy={236} rx={52} ry={4} fill="#23382F" opacity={0.07} />
+      <g key={`${band}-${score === null ? "u" : Math.round(score / 5)}`} className={animate ? "plant-settle" : undefined} style={{ transformOrigin: `${BASE_X}px ${BASE_Y}px` }}>
       <g
         className={animate && !paused ? "plant-sway" : undefined}
         style={{ transformOrigin: `${BASE_X}px ${BASE_Y}px`, animationDuration: `${dur}s`, animationDelay: `-${(r2() * dur).toFixed(2)}s` }}
       >
         {seedling ? <Seedling /> : <Kind v={v} r={r} id={id} />}
       </g>
+      </g>
       {/* pot */}
-      <path d="M66,196 L134,196 L127,234 L73,234 Z" fill="#C46A4A" />
-      <path d="M66,196 L134,196 L132,206 L68,206 Z" fill="#000" opacity={0.08} />
-      <rect x={60} y={184} width={80} height={13} rx={3} fill="#D27C5B" />
-      <ellipse cx={100} cy={186} rx={36} ry={3.5} fill="#5A4636" />
+      <path d="M66,196 L134,196 L127,234 L73,234 Z" fill="#C97862" />
+      <path d="M66,196 L134,196 L132,206 L68,206 Z" fill="#23382F" opacity={0.08} />
+      <rect x={60} y={184} width={80} height={13} rx={3} fill="#D48C77" />
+      <ellipse cx={100} cy={186} rx={36} ry={3.5} fill="#5A4A3A" />
+      {kind === "ivy" && !seedling && (
+        <g className={animate && !paused ? "plant-sway" : undefined} style={{ transformOrigin: `${BASE_X}px ${BASE_Y}px`, animationDuration: `${dur}s` }}>
+          <Ivy v={v} r={rng(`${id}:ivy-trail`)} id={id} part="trailing" />
+        </g>
+      )}
       {paused && (
         <g transform="translate(160,62)">
-          <circle r={12} fill="#EDE5D6" />
-          <path d="M3,-7 a8,8 0 1,0 4,12 a6,6 0 1,1 -4,-12Z" fill="#848C86" />
+          <circle r={12} fill="#ECEDE5" />
+          <path d="M3,-7 a8,8 0 1,0 4,12 a6,6 0 1,1 -4,-12Z" fill="#788077" />
         </g>
       )}
     </svg>

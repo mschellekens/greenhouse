@@ -8,11 +8,11 @@ export default function Home() {
   const { ready, state } = useApp();
   const router = useRouter();
   useEffect(() => {
-    if (ready) router.replace(state.settings.onboarded ? "/map" : "/welcome");
-  }, [ready, state.settings.onboarded, router]);
+    if (ready) router.replace(state.settings.onboarded ? `/${state.settings.defaultView}` : "/welcome");
+  }, [ready, state.settings.onboarded, state.settings.defaultView, router]);
   return (
     <main className="flex min-h-dvh items-center justify-center">
-      <Mark size={48} className="animate-pulse" />
+      <Mark size={44} className="animate-pulse" />
     </main>
   );
 }

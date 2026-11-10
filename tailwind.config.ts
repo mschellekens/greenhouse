@@ -1,21 +1,25 @@
 import type { Config } from "tailwindcss";
+
+// Brand palette (spec section 2). Darker "-ink" variants are used only where
+// small text needs WCAG AA contrast on ivory; the brand hexes stay the source.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        forest: { DEFAULT: "#1F3A2E", 700: "#2A4A3B", 600: "#355C49" },
-        sage: { DEFAULT: "#8FA98A", 200: "#D5E0D0", 100: "#E8EFE4" },
-        cream: { DEFAULT: "#F6F1E7", 50: "#FBF8F2", 200: "#EDE5D6" },
-        clay: { DEFAULT: "#C46A4A", 200: "#F0D3C6" },
-        ochre: { DEFAULT: "#D4A04C" },
-        ink: { DEFAULT: "#1B1F1C", 500: "#5B635D", 400: "#848C86" },
+        ivory: { DEFAULT: "#F7F6F0", 50: "#FBFAF6" },
+        forest: { DEFAULT: "#23382F", 700: "#2E4A3E", 600: "#3A5A4C" },
+        sage: { DEFAULT: "#829985", 100: "#E6ECE5", 200: "#CCD7CC", ink: "#5B6E5E" },
+        leaf: { DEFAULT: "#5E9070", ink: "#4A7A5C" },
+        ochre: { DEFAULT: "#D9AF69", ink: "#87652A" },
+        terracotta: { DEFAULT: "#C97862", ink: "#A65A45", 100: "#F3E1DA" },
+        stone: { DEFAULT: "#ECEDE5", 300: "#DCDED3" },
+        muted: { DEFAULT: "#788077", strong: "#646B63" },
       },
       fontFamily: {
         serif: ["var(--font-serif)", "Georgia", "serif"],
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
-      borderRadius: { xl2: "1.25rem" },
     },
   },
   plugins: [],

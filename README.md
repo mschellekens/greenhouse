@@ -18,12 +18,12 @@ Checks:
 ```bash
 npm run lint
 npm run typecheck
-npm test               # Vitest: scoring engine + parser
+npm test               # Vitest: scoring engine, attention, demo journey, parsers
 npm run build
 node scripts/screenshots.mjs http://localhost:3100   # mobile screenshots -> screenshots/ (needs Chrome at /usr/bin/google-chrome)
 ```
 
-On first open you get onboarding (6 screens). On the welcome screen, **Load example greenhouse** seeds an eight-week journey (six habits, a past pause, a goal change, partial alcohol logs) so you can see every state. `/plants` shows every plant at every condition.
+On first open you get onboarding (spec §3, six screens: welcome, how many, describe in your own words, confirm, Map or Garden, integrations). **Explore an example greenhouse** on the welcome screen seeds the spec §13 journey (Strength 3/wk, Cardio 2/wk, Alcohol max 2/wk with complete logging, Reading 4 days/wk, Family call every 14 days; six weeks of history). `/plants` shows every plant at every condition. Add more habits later via Settings → Add habits (`/welcome?step=3`).
 
 ## How it is built
 
@@ -37,11 +37,19 @@ On first open you get onboarding (6 screens). On the welcome screen, **Load exam
 | localStorage adapter (active) | `src/lib/storage/local.ts` |
 | Supabase adapter (stub, **not connected**) + schema/RLS | `src/lib/storage/supabase.ts`, `supabase/schema.sql` |
 | App state + actions (undo, soft delete) | `src/lib/store.tsx` |
-| SVG plants (olive, fern, lavender, monstera, snake plant, echeveria) | `src/components/Plant.tsx` |
+| Attention ranking, band labels, next-action copy | `src/lib/attention.ts` |
+| Example greenhouse (spec §13 journey) | `src/lib/demo.ts`, tests in `demo.test.ts` |
+| SVG plants (olive, fern, ficus, monstera, lavender, ivy, rosemary) | `src/components/Plant.tsx` (all states at `/plants`) |
 | Screens | `src/app/welcome` (onboarding 1-6), `src/app/(main)/{map,garden,habit/[id],history,settings}` |
 
+### Brand
+Palette from the spec: ivory `#F7F6F0`, forest `#23382F`, sage `#829985`, leaf `#5E9070`, ochre `#D9AF69`, terracotta `#C97862`, stone `#ECEDE5`, gray `#788077` (Tailwind tokens in `tailwind.config.ts`). Small text uses slightly darker "ink" variants of gray/sage/ochre/terracotta so it meets WCAG AA contrast on ivory. Type: Instrument Serif (display) + Inter.
+
 ### Scoring in one paragraph
-Three habit types. **Frequency** (A): distinct active days in a rolling window (7 days for weekly/daily goals, 30 for monthly) against the goal, blended 70/30 with the previous window so there are no cliffs; a smooth exponential fade once the gap since the last session exceeds ~1.5x the expected rhythm; a small spacing adjustment for bunched sessions; overshoot capped. **Limit** (B): only logged days count, unlogged days are unknown (never zero); score is "based on your logs" with a completeness percentage and a confidence that drops with sparse logging; no logs means *unknown*, not success; avoid-type limits (0) score the share of logged days that were clear. **Quantity** (C): totals (minutes, pages) vs a per-period target, or an average per logged day (sleep). Paused days are skipped entirely and a paused habit holds its last score. Goals are versioned by effective date, so history keeps the goal that applied then. Events carry their local calendar date (fixed at log time in the user's timezone), so timezone changes never move history. Score 0-100 maps to bands: Thriving ≥75, Growing ≥50, Needs care ≥25, Dormant <25, plus Unknown and Resting.
+Every goal is a target over a **rolling window** (`windowDays`: 1, 7, 14, 30), with a direction (do more / maintain / do less). An event counts fully for the first half of the window, then fades linearly to zero at 1.5x the window, so conditions decline gradually as time passes and never fall off a cliff at a boundary. **Frequency** goals count distinct active days (or events) against the target, with a small spacing adjustment and overshoot capped (more than the target is not rewarded). **Quantity** goals use totals or averages (sleep). **Limit** (do less) goals compare exposure with the allowance: within the limit scores 80-100, over it falls smoothly; unlogged days are *never* treated as success, so unless the user marks "I log every one" the condition reads "Based on your logs" and drops to *Insufficient data* when logging is sparse. Paused days are skipped and a paused habit holds its condition. Goals are versioned by effective date; events keep their local calendar day. Bands: Thriving ≥80 (leaf), Doing well ≥60 (sage), Worth attention ≥40 (ochre), Needs attention <40 (terracotta), Insufficient data (gray), Paused. The number is internal; the UI leads with the label and a plain-language sentence.
+
+### Attention
+`rankByAttention` orders the Map by: condition, proximity to the next band down, how actionable one more event would be, importance, trajectory, and damping for long-neglected habits so one habit doesn't dominate forever.
 
 ## Going live: what is needed
 
@@ -54,9 +62,11 @@ Three habit types. **Frequency** (A): distinct active days in a rolling window (
 3. **Vercel deploy**
    - Import the repo in Vercel (framework: Next.js, no extra config), add the env vars above, deploy. The PWA manifest and icons are in `public/`.
 
-Integrations (Apple Health, Google Fit, Strava, Oura, Calendar) are shown in Settings as *not connected · coming later*. None are implemented.
+Integrations (Apple Health, Google Health Connect, Strava, Oura) appear in onboarding step 6 and Settings as *Not available yet*. None are implemented; the schema has `integration_connections` and `events.source_event_id` (deduped) ready.
 
 ## Known limitations of this build
 - Data is per browser until Supabase is connected. Use Settings → Export to back up.
+- Custom Map order uses move buttons rather than drag and drop.
+- Reminders are off and not implemented.
 - No service worker yet, so the PWA installs but does not work offline.
 - The rule parser covers common phrasings (numbers as words, minutes/hours, drinks, today/yesterday/last night/this morning/weekday names/"N days ago"). Anything else gets a follow-up question instead of a guess.

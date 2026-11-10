@@ -2,6 +2,10 @@
 import { useState } from "react";
 import { useApp } from "@/lib/store";
 import { formatDate, instantFor, relativeDay } from "@/lib/dates";
+import { conditionChanges } from "@/lib/scoring";
+import { BAND_LABEL } from "@/lib/attention";
+import { SOURCE_LABEL } from "@/lib/format";
+import { ConditionLabel } from "@/components/Condition";
 import type { HabitEvent } from "@/lib/types";
 
 function Row({ e }: { e: HabitEvent }) {
@@ -12,14 +16,14 @@ function Row({ e }: { e: HabitEvent }) {
   const [qty, setQty] = useState(e.quantity?.toString() ?? "");
   if (!habit) return null;
   return (
-    <li className="rounded-2xl bg-white px-4 py-2.5 text-sm shadow-sm">
+    <li className="rounded-2xl bg-white/70 px-4 py-2.5 text-sm">
       {edit ? (
         <div className="flex flex-wrap items-end gap-2">
           <span className="w-full font-medium">{habit.name}</span>
           <input aria-label="Date" type="date" value={date} max={app.today} onChange={(x) => setDate(x.target.value)} className="rounded-lg border border-forest/15 px-2 py-1" />
           {habit.type !== "frequency" && <input aria-label="Amount" type="number" min={0} value={qty} onChange={(x) => setQty(x.target.value)} className="w-20 rounded-lg border border-forest/15 px-2 py-1" />}
           <button
-            className="rounded-full bg-forest px-3 py-1 text-cream"
+            className="rounded-full bg-forest px-3 py-1 text-ivory"
             onClick={() => {
               app.updateEvent(e.id, { date, quantity: qty === "" ? undefined : Number(qty), occurredAt: date !== e.date ? instantFor(date, 12, app.state.settings.timezone) : e.occurredAt });
               setEdit(false);
@@ -27,7 +31,7 @@ function Row({ e }: { e: HabitEvent }) {
           >
             Save
           </button>
-          <button className="text-ink-500" onClick={() => setEdit(false)}>
+          <button className="text-muted-strong" onClick={() => setEdit(false)}>
             Cancel
           </button>
         </div>
@@ -35,15 +39,18 @@ function Row({ e }: { e: HabitEvent }) {
         <div className="flex items-center justify-between">
           <div>
             <span className="font-medium">{habit.name}</span>
-            {e.quantity !== undefined && <span className="text-ink-500"> · {habit.type === "limit" && e.quantity === 0 ? "none" : `${e.quantity} ${e.unit ?? ""}`}</span>}
-            {habit.archivedAt && <span className="ml-1 text-xs text-ink-400">(archived)</span>}
-            {e.source === "text" && e.note && <p className="text-xs italic text-ink-400">“{e.note}”</p>}
+            {e.quantity !== undefined && <span className="text-muted-strong"> · {habit.type === "limit" && e.quantity === 0 ? "none" : `${e.quantity} ${e.unit ?? ""}`}</span>}
+            {habit.archivedAt && <span className="ml-1 text-xs text-muted-strong">(archived)</span>}
+            <p className="text-xs text-muted-strong">
+              {SOURCE_LABEL[e.source] ?? e.source}
+              {(e.source === "text" || e.source === "llm") && e.note ? ` · “${e.note}”` : ""}
+            </p>
           </div>
           <div className="flex shrink-0 gap-1">
-            <button className="rounded-full px-2 py-1 text-xs text-ink-500" onClick={() => setEdit(true)}>
+            <button className="rounded-full px-2 py-1 text-xs text-muted-strong" onClick={() => setEdit(true)}>
               Edit
             </button>
-            <button className="rounded-full px-2 py-1 text-xs text-clay" onClick={() => app.deleteEvent(e.id)}>
+            <button className="rounded-full px-2 py-1 text-xs text-terracotta-ink" onClick={() => app.deleteEvent(e.id)}>
               Delete
             </button>
           </div>
@@ -59,9 +66,15 @@ export default function HistoryPage() {
   const [limit, setLimit] = useState(21);
   const events = app.state.events.filter((e) => !e.deletedAt && (filter === "all" || e.habitId === filter));
   const days = Array.from(new Set(events.map((e) => e.date))).sort().reverse();
+  const changes = app.state.habits
+    .filter((h) => !h.archivedAt && (filter === "all" || h.id === filter))
+    .flatMap((h) => conditionChanges(h, app.state.events, app.today, 14).map((c) => ({ ...c, habit: h })))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
   return (
     <div>
-      <h1 className="mb-3 font-display text-3xl text-forest">History</h1>
+      <h1 className="mb-1 font-display text-[40px] leading-tight text-forest">History</h1>
+      <p className="mb-4 text-[14px] text-muted-strong">What you logged, and how each habit’s condition has moved.</p>
       <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mb-4 w-full rounded-full border border-forest/15 bg-white px-4 py-2 text-sm" aria-label="Filter by habit">
         <option value="all">All habits</option>
         {app.state.habits.map((h) => (
@@ -70,10 +83,27 @@ export default function HistoryPage() {
           </option>
         ))}
       </select>
-      {days.length === 0 && <p className="text-sm text-ink-500">Nothing logged yet. Tell Greenhouse what you did below.</p>}
+      {changes.length > 0 && (
+        <section className="mb-5 rounded-3xl bg-white/70 p-4">
+          <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-strong">Condition changes · past 14 days</h2>
+          <ul className="space-y-2">
+            {changes.map((c, i) => (
+              <li key={i} className="flex items-center justify-between gap-2 text-[14px]">
+                <span>
+                  {c.habit.name} <span className="text-muted-strong">· {formatDate(c.date)}</span>
+                </span>
+                <span className="flex items-center gap-1 text-[12px] text-muted-strong">
+                  {BAND_LABEL[c.from]} → <ConditionLabel band={c.to} score={c.to === "thriving" ? 90 : c.to === "doing-well" ? 70 : c.to === "worth-attention" ? 50 : 20} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {days.length === 0 && <p className="text-sm text-muted-strong">Nothing logged yet. Tell Greenhouse what you did below.</p>}
       {days.slice(0, limit).map((d) => (
         <section key={d} className="mb-4">
-          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">
+          <h2 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-strong">
             {relativeDay(d, app.today) === formatDate(d) ? formatDate(d, { weekday: "long", month: "short", day: "numeric" }) : `${relativeDay(d, app.today)} · ${formatDate(d, { weekday: "short", month: "short", day: "numeric" })}`}
           </h2>
           <ul className="space-y-1.5">

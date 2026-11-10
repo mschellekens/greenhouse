@@ -1,33 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { parseLogText, proposeGoals } from "./rules";
+import { combinedQuestion, parseLogText, proposeFromName, proposeGoals } from "./rules";
 import { validateLlmLog } from "./llm";
 import type { Habit } from "../types";
 import { ARCHETYPES } from "./catalog";
 
 describe("onboarding goal parsing", () => {
-  const out = proposeGoals("lift weights three times a week, do cardio twice, read more, drink less alcohol");
+  const out = proposeGoals("I want to lift weights three times a week, do cardio twice, read more, and drink less alcohol.");
   it("finds four habits", () => {
-    expect(out.map((h) => h.name)).toEqual(["Lift weights", "Cardio", "Read", "Alcohol"]);
+    expect(out.map((h) => h.name)).toEqual(["Strength training", "Cardio", "Reading", "Alcohol"]);
   });
   it("lift weights: 3 per week, no follow-up", () => {
-    expect(out[0]).toMatchObject({ type: "frequency", goal: { target: 3, period: "week" } });
+    expect(out[0]).toMatchObject({ type: "frequency", direction: "more", goal: { target: 3, windowDays: 7 } });
     expect(out[0].followUp).toBeUndefined();
   });
   it("cardio twice: 2 per week, period assumption surfaced", () => {
-    expect(out[1]).toMatchObject({ type: "frequency", goal: { target: 2, period: "week" } });
+    expect(out[1]).toMatchObject({ type: "frequency", goal: { target: 2, windowDays: 7 } });
     expect(out[1].assumptions.join(" ")).toMatch(/Assumed/);
   });
   it("read more: asks, does not invent a target", () => {
     expect(out[2].goal.target).toBeUndefined();
+    expect(out[2].followUp?.short).toBe("Needs a frequency");
     expect(out[2].followUp?.options.length).toBeGreaterThan(1);
   });
   it("drink less alcohol: limit with a follow-up for the limit", () => {
     expect(out[3].type).toBe("limit");
+    expect(out[3].direction).toBe("less");
+    expect(out[3].followUp?.short).toBe("Needs a limit");
     expect(out[3].goal.target).toBeUndefined();
     expect(out[3].followUp?.question).toMatch(/limit/i);
   });
+  it("asks one combined conversational question", () => {
+    expect(combinedQuestion(out)).toBe("How often would you like to read, and what limit would feel right for alcohol?");
+  });
+  it("every 14 days, limits with numbers, averages", () => {
+    expect(proposeGoals("call my parents at least once every 14 days")[0]).toMatchObject({ name: "Family", direction: "maintain", goal: { target: 1, windowDays: 14 } });
+    expect(proposeGoals("call mum every two weeks")[0]).toMatchObject({ goal: { target: 1, windowDays: 14 } });
+    expect(proposeGoals("drink no more than 2 drinks per week")[0]).toMatchObject({ type: "limit", goal: { target: 2, windowDays: 7 } });
+    expect(proposeGoals("sleep 7.5 hours a night")[0]).toMatchObject({ type: "quantity", goal: { target: 7.5, unit: "h", quantityMode: "average", windowDays: 1 } });
+  });
+  it("manual creation from a suggestion or a custom name", () => {
+    expect(proposeFromName("meditation", "k1")).toMatchObject({ name: "Meditation", followUp: { short: "Needs a frequency" } });
+    expect(proposeFromName("Practice piano", "k2")).toMatchObject({ name: "Practice piano", type: "frequency" });
+  });
   it("explicit amounts and quitting", () => {
-    expect(proposeGoals("read 20 minutes a day")[0]).toMatchObject({ type: "quantity", goal: { target: 20, unit: "min", period: "day" } });
+    expect(proposeGoals("read 20 minutes a day")[0]).toMatchObject({ type: "quantity", goal: { target: 20, unit: "min", windowDays: 1 } });
     expect(proposeGoals("quit smoking")[0]).toMatchObject({ type: "limit", goal: { target: 0 } });
   });
 });
@@ -35,16 +51,16 @@ describe("onboarding goal parsing", () => {
 function habit(id: string, archeId: string, type: Habit["type"], unit?: string): Habit {
   const a = ARCHETYPES.find((x) => x.id === archeId)!;
   return {
-    id, name: a.name, type, category: a.category, plant: a.plant, keywords: a.keywords,
-    goals: [{ effectiveFrom: "2026-01-01", target: 3, period: "week", unit }],
+    id, name: a.name, type, direction: a.direction, importance: 2, category: a.category, plant: a.plant, keywords: a.keywords,
+    goals: [{ effectiveFrom: "2026-01-01", target: 3, windowDays: 7, unit }],
     createdAt: "2026-01-01T00:00:00Z", startDate: "2026-01-01", pauses: [], sortOrder: 0,
   };
 }
 
 const habits = [
-  habit("lift", "lift", "frequency"),
+  habit("lift", "strength", "frequency"),
   habit("cardio", "cardio", "frequency", "min"),
-  habit("read", "read", "quantity", "min"),
+  habit("read", "reading", "quantity", "min"),
   habit("alc", "alcohol", "limit", "drinks"),
   habit("fam", "family", "frequency"),
 ];
@@ -77,8 +93,9 @@ describe("log parsing", () => {
     const r = parseLogText("Went to the gym on Monday and Wednesday", ctx);
     expect(r.kind).toBe("followup");
     if (r.kind !== "followup") return;
-    expect(r.options.map((o) => o.label).sort()).toEqual(["Cardio", "Lift weights"]);
-    const r2 = parseLogText("Went to the gym on Monday and Wednesday", ctx, r.options.find((o) => o.label === "Lift weights")!.hints);
+    expect(r.question).toBe("Was that strength training or cardio?");
+    expect(r.options.map((o) => o.label).sort()).toEqual(["Cardio", "Strength training"]);
+    const r2 = parseLogText("Went to the gym on Monday and Wednesday", ctx, r.options.find((o) => o.label === "Strength training")!.hints);
     if (r2.kind !== "events") throw new Error(r2.kind);
     expect(r2.events.map((e) => e.date)).toEqual(["2026-11-04", "2026-11-09"]);
   });
@@ -93,6 +110,11 @@ describe("log parsing", () => {
     expect(r.kind).toBe("followup");
     if (r.kind !== "followup") return;
     expect(r.options[0].hints.quantity).toBeDefined();
+  });
+  it("ambiguous drink count is asked, not guessed", () => {
+    const r = parseLogText("had some wine", ctx);
+    expect(r.kind).toBe("followup");
+    if (r.kind === "followup") expect(r.question).toBe("How many drinks was that?");
   });
   it("no drinks today logs an explicit zero check-in", () => {
     const r = parseLogText("No drinks today", ctx);

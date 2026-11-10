@@ -1,20 +1,21 @@
+/** Understated mark: an abstract glasshouse silhouette with an emerging stem. */
 export function Mark({ size = 28, className = "" }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 512 512" className={className} aria-hidden>
-      <rect width="512" height="512" rx="112" fill="#1F3A2E" />
-      <path d="M256 104 L384 196 L384 392 L128 392 L128 196 Z" fill="none" stroke="#F6F1E7" strokeWidth="22" strokeLinejoin="round" />
-      <path d="M256 392 C252 330 256 290 256 250" stroke="#8FA98A" strokeWidth="20" strokeLinecap="round" fill="none" />
-      <path d="M256 290 C214 286 192 254 196 220 C232 222 256 248 256 290 Z" fill="#8FA98A" />
-      <path d="M256 262 C292 254 318 226 316 192 C282 196 258 222 256 262 Z" fill="#B8CDB0" />
+    <svg width={size} height={size} viewBox="96 80 320 340" className={className} aria-hidden>
+      <path d="M256 112 L380 202 L380 392 L132 392 L132 202 Z" fill="none" stroke="#23382F" strokeWidth="24" strokeLinejoin="round" />
+      <path d="M256 392 C252 336 256 296 256 258" stroke="#23382F" strokeWidth="22" strokeLinecap="round" fill="none" />
+      <path d="M256 300 C212 296 190 262 194 226 C232 228 256 256 256 300 Z" fill="#23382F" />
+      <path d="M256 270 C294 262 320 232 318 196 C282 200 258 228 256 270 Z" fill="#829985" />
     </svg>
   );
 }
 
-export function Wordmark({ className = "" }: { className?: string }) {
+export function Wordmark({ className = "", size = "md" }: { className?: string; size?: "md" | "lg" }) {
+  const lg = size === "lg";
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      <Mark size={26} />
-      <span className="font-display text-[26px] leading-none text-forest">Greenhouse</span>
+    <span className={`inline-flex items-center gap-2 text-forest ${className}`}>
+      <Mark size={lg ? 30 : 22} />
+      <span className={`font-display leading-none ${lg ? "text-[30px]" : "text-[23px]"}`}>Greenhouse</span>
     </span>
   );
 }

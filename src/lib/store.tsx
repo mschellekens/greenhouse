@@ -4,7 +4,7 @@ import type { AppState, Condition, Goal, Habit, HabitEvent, PlantKind, Settings 
 import { emptyState, type StorageAdapter } from "./storage/adapter";
 import { LocalStorageAdapter } from "./storage/local";
 import { computeCondition } from "./scoring";
-import { addDays, localDate } from "./dates";
+import { addDays, instantFor, localDate } from "./dates";
 import { buildDemoState } from "./demo";
 import type { ParsedLog, ProposedHabit } from "./parser/types";
 
@@ -25,7 +25,9 @@ interface Ctx {
   activeHabits: Habit[];
   toast: Toast | null;
   dismissToast: () => void;
-  plantHabits: (proposals: ProposedHabit[]) => void;
+  plantHabits: (proposals: ProposedHabit[], settings?: Partial<Settings>) => void;
+  deleteHabit: (id: string) => void;
+  setLoggingComplete: (id: string, complete: boolean) => void;
   updateHabit: (id: string, patch: Partial<Habit>) => void;
   changeGoal: (id: string, goal: Omit<Goal, "effectiveFrom">) => void;
   setPaused: (id: string, paused: boolean, reason?: string) => void;
@@ -113,23 +115,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     activeHabits,
     toast,
     dismissToast: () => setToast(null),
-    plantHabits: (proposals) =>
+    deleteHabit: (id) => setState((s) => ({ ...s, habits: s.habits.filter((h) => h.id !== id), events: s.events.filter((e) => e.habitId !== id) })),
+    setLoggingComplete: (id, complete) => patchHabit(id, (h) => ({ ...h, completeLoggingSince: complete ? today : undefined })),
+    plantHabits: (proposals, settings) =>
       setState((s) => {
         const base = s.habits.length;
         const habits: Habit[] = proposals.map((p, i) => ({
           id: uid(),
           name: p.name,
+          emoji: p.emoji,
           type: p.type,
+          direction: p.direction,
           category: p.category,
           plant: p.plant,
-          keywords: p.keywords,
-          goals: [{ effectiveFrom: today, target: p.goal.target ?? 1, period: p.goal.period, unit: p.goal.unit, quantityMode: p.goal.quantityMode }],
+          keywords: [...p.keywords, ...p.name.toLowerCase().split(/\s+/).filter((w) => w.length > 3)],
+          preferredDays: p.preferredDays?.length ? p.preferredDays : undefined,
+          importance: 2,
+          goals: [{ effectiveFrom: today, target: p.goal.target ?? 1, windowDays: p.goal.windowDays, unit: p.goal.unit, quantityMode: p.goal.quantityMode, countMode: p.goal.countMode, minSpacingDays: p.goal.minSpacingDays }],
           createdAt: new Date().toISOString(),
           startDate: today,
           pauses: [],
           sortOrder: base + i,
         }));
-        return { ...s, habits: [...s.habits, ...habits], settings: { ...s.settings, onboarded: true } };
+        return { ...s, habits: [...s.habits, ...habits], settings: { ...s.settings, ...settings, onboarded: true } };
       }),
     updateHabit: (id, patch) => patchHabit(id, (h) => ({ ...h, ...patch })),
     changeGoal: (id, goal) =>
@@ -165,7 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const evs: HabitEvent[] = logs.map((l) => ({ id: uid(), habitId: l.habitId, date: l.date, occurredAt: l.occurredAt, quantity: l.quantity, unit: l.unit, note: l.note, source, createdAt: now }));
       setState((s) => ({ ...s, events: [...s.events, ...evs] }));
       const ids = new Set(evs.map((e) => e.id));
-      const label = logs.length === 1 ? `Logged ${logs[0].habitName.toLowerCase()}` : `Logged ${logs.length} entries`;
+      const label = logs.length === 1 ? `${logs[0].habitName} logged` : `${logs.length} entries logged`;
       showToast(`${label}.`, () => setState((s) => ({ ...s, events: s.events.filter((e) => !ids.has(e.id)) })));
     },
     quickLog: (habitId, quantity, date) => {
@@ -173,7 +181,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!h) return;
       const d = date ?? today;
       const unit = h.goals[h.goals.length - 1]?.unit;
-      value.logEvents([{ habitId, habitName: h.name, date: d, occurredAt: new Date().toISOString(), quantity, unit }], "quick");
+      const occurredAt = d === today ? new Date().toISOString() : instantFor(d, 12, state.settings.timezone);
+      value.logEvents([{ habitId, habitName: h.name, date: d, occurredAt, quantity: h.type === "limit" ? quantity ?? 1 : quantity, unit }], "quick");
     },
     updateEvent: (id, patch) => setState((s) => ({ ...s, events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
     deleteEvent: (id) => {

@@ -33,19 +33,19 @@ export function ScoreChart({ points }: { points: HistoryPoint[] }) {
           </linearGradient>
         </defs>
         {[25, 50, 75].map((g) => (
-          <line key={g} x1={pad} x2={W - pad} y1={y(g)} y2={y(g)} stroke="#1F3A2E" strokeOpacity={0.08} strokeDasharray="3 4" />
+          <line key={g} x1={pad} x2={W - pad} y1={y(g)} y2={y(g)} stroke="#23382F" strokeOpacity={0.08} strokeDasharray="3 4" />
         ))}
         {points.map((p, i) =>
-          p.paused ? <rect key={i} x={x(i) - (W / points.length) / 2} y={pad} width={W / points.length} height={H - pad * 2} fill="#848C86" opacity={0.12} /> : null,
+          p.band === "paused" ? <rect key={i} x={x(i) - (W / points.length) / 2} y={pad} width={W / points.length} height={H - pad * 2} fill="#646B63" opacity={0.12} /> : null,
         )}
         {segs.map((d, i) => (
           <path key={i} d={d} fill="none" stroke={`url(#${gid})`} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         ))}
         {last && last.score !== null && <circle cx={x(points.indexOf(last))} cy={y(last.score)} r={4} fill={scoreColor(last.score)} stroke="#fff" strokeWidth={2} />}
-        <text x={pad} y={H + 14} fontSize={10} fill="#848C86">
+        <text x={pad} y={H + 14} fontSize={10} fill="#646B63">
           {formatDate(points[0].date)}
         </text>
-        <text x={W - pad} y={H + 14} fontSize={10} fill="#848C86" textAnchor="end">
+        <text x={W - pad} y={H + 14} fontSize={10} fill="#646B63" textAnchor="end">
           Today
         </text>
       </svg>

@@ -1,7 +1,7 @@
 import type { AppState } from "../types";
 import type { StorageAdapter } from "./adapter";
 
-const KEY = "greenhouse:v1";
+const KEY = "greenhouse:v2";
 
 /** Browser localStorage implementation. Survives refreshes; per device only. */
 export class LocalStorageAdapter implements StorageAdapter {
@@ -13,7 +13,7 @@ export class LocalStorageAdapter implements StorageAdapter {
       const raw = window.localStorage.getItem(KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as AppState;
-      return parsed.version === 1 ? parsed : null;
+      return parsed.version === 2 ? parsed : null;
     } catch {
       return null;
     }

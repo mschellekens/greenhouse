@@ -1,4 +1,4 @@
-import type { Category, Goal, Habit, HabitType, PlantKind } from "../types";
+import type { Category, Direction, Goal, Habit, HabitType, PlantKind } from "../types";
 
 export interface ParseContext {
   habits: Habit[];
@@ -11,22 +11,25 @@ export interface ParseContext {
 
 export interface GoalOption {
   label: string;
-  patch: Partial<Goal> & { type?: HabitType };
+  patch: Partial<Goal> & { type?: HabitType; direction?: Direction };
 }
 
 export interface ProposedHabit {
   key: string;
   name: string;
+  emoji?: string;
   type: HabitType;
-  category: Category;
+  direction: Direction;
+  category?: Category;
   plant: PlantKind;
   keywords: string[];
   /** Partial: target may be missing until the follow-up is answered. */
-  goal: Partial<Goal> & { period: Goal["period"] };
+  goal: Partial<Goal> & { windowDays: number };
+  preferredDays?: number[];
   /** Things we assumed and the user should confirm. */
   assumptions: string[];
   /** Present when we can't propose a goal without asking. */
-  followUp?: { question: string; options: GoalOption[] };
+  followUp?: { question: string; short: string; options: GoalOption[] };
   sourceText: string;
 }
 

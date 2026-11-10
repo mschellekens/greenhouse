@@ -1,78 +1,57 @@
 /**
- * "Load example greenhouse": seeds a realistic eight-week journey relative to
- * today so every state is visible: thriving, growing, wilting, unknown-ish
- * completeness for alcohol, a past pause, a goal change, and backdated logs.
+ * "Load example greenhouse": the section 13 journey, seeded relative to today.
+ *  1. Strength training: 3 times weekly        -> three sessions in the last 7 days (green)
+ *  2. Cardio: 2 times weekly                   -> one of two recent sessions (amber)
+ *  3. Alcohol: max 2 drinks weekly, logging marked complete -> within limit (green)
+ *  4. Reading: 4 days weekly                   -> consistent (green)
+ *  5. Family: call at least once every 14 days -> last call 12 days ago (approaching amber)
+ * Six weeks of believable history sit behind it so charts and History have shape.
  */
 import type { AppState, Habit, HabitEvent } from "./types";
-import { addDays, instantFor, weekday } from "./dates";
+import { addDays, instantFor } from "./dates";
 import { ARCHETYPES } from "./parser/catalog";
 
-function rng(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) % 4294967296;
-    return s / 4294967296;
-  };
-}
-
 export function buildDemoState(today: string, timezone: string): AppState {
-  const r = rng(42);
-  const start = addDays(today, -56);
+  const start = addDays(today, -42);
   const kw = (id: string) => ARCHETYPES.find((a) => a.id === id)!.keywords;
-  const mk = (id: string, name: string, extra: Partial<Habit>): Habit => ({
-    id,
-    name,
-    type: "frequency",
-    category: "Movement",
-    plant: "olive",
-    goals: [],
+  const mk = (h: Partial<Habit> & Pick<Habit, "id" | "name" | "type" | "direction" | "plant" | "goals">, order: number): Habit => ({
     keywords: [],
+    importance: 2,
     createdAt: instantFor(start, 9, timezone),
     startDate: start,
     pauses: [],
-    sortOrder: 0,
-    ...extra,
+    sortOrder: order,
+    ...h,
   });
+  const g = (target: number, windowDays: number, unit?: string) => [{ effectiveFrom: start, target, windowDays, unit }];
   const habits: Habit[] = [
-    mk("demo-lift", "Lift weights", { plant: "olive", keywords: kw("lift"), sortOrder: 0, goals: [{ effectiveFrom: start, target: 3, period: "week" }], pauses: [{ start: addDays(today, -30), end: addDays(today, -21), reason: "travel" }] }),
-    mk("demo-cardio", "Cardio", { plant: "fern", keywords: kw("cardio"), sortOrder: 1, goals: [{ effectiveFrom: start, target: 2, period: "week", unit: "min" }] }),
-    mk("demo-read", "Read", { type: "quantity", category: "Mind", plant: "lavender", keywords: kw("read"), sortOrder: 2, goals: [{ effectiveFrom: start, target: 15, period: "day", unit: "min", quantityMode: "total" }, { effectiveFrom: addDays(today, -20), target: 20, period: "day", unit: "min", quantityMode: "total" }] }),
-    mk("demo-alcohol", "Alcohol", { type: "limit", category: "Nourishment", plant: "succulent", keywords: kw("alcohol"), sortOrder: 3, goals: [{ effectiveFrom: start, target: 5, period: "week", unit: "drinks" }] }),
-    mk("demo-family", "Call family", { category: "Connection", plant: "monstera", keywords: kw("family"), sortOrder: 4, goals: [{ effectiveFrom: start, target: 1, period: "week" }] }),
-    mk("demo-sleep", "Sleep", { type: "quantity", category: "Rest", plant: "snake", keywords: kw("sleep"), sortOrder: 5, goals: [{ effectiveFrom: start, target: 7.5, period: "day", unit: "h", quantityMode: "average" }] }),
+    mk({ id: "demo-strength", name: "Strength training", emoji: "🏋️", type: "frequency", direction: "more", category: "Movement", plant: "olive", keywords: kw("strength"), goals: g(3, 7), preferredDays: [1, 3, 5] }, 0),
+    mk({ id: "demo-cardio", name: "Cardio", emoji: "🏃", type: "frequency", direction: "more", category: "Movement", plant: "fern", keywords: kw("cardio"), goals: g(2, 7, "min") }, 1),
+    mk({ id: "demo-alcohol", name: "Alcohol", emoji: "🍷", type: "limit", direction: "less", category: "Health", plant: "rosemary", keywords: kw("alcohol"), goals: g(2, 7, "drinks"), completeLoggingSince: start }, 2),
+    mk({ id: "demo-reading", name: "Reading", emoji: "📖", type: "frequency", direction: "more", category: "Mind", plant: "ficus", keywords: kw("reading"), goals: g(4, 7, "min") }, 3),
+    mk({ id: "demo-family", name: "Family", emoji: "📞", type: "frequency", direction: "maintain", category: "Relationships", plant: "ivy", keywords: kw("family"), goals: g(1, 14) }, 4),
   ];
   const events: HabitEvent[] = [];
   let n = 0;
-  const add = (habitId: string, date: string, hour: number, quantity?: number, unit?: string, note?: string) => {
-    if (date > today) return;
+  const add = (habitId: string, ago: number, hour: number, quantity?: number, unit?: string, note?: string) => {
+    if (ago < 0) return;
+    const date = addDays(today, -ago);
     events.push({ id: `demo-e${++n}`, habitId, date, occurredAt: instantFor(date, hour, timezone), quantity, unit, note, source: "demo", createdAt: instantFor(date, Math.min(hour + 1, 23), timezone) });
   };
-  for (let i = 56; i >= 0; i--) {
-    const d = addDays(today, -i);
-    const w = weekday(d);
-    // Lift: Mon/Wed/Fri, paused for travel, occasional miss
-    if ([1, 3, 5].includes(w) && !(i <= 30 && i >= 21) && r() > 0.12) add("demo-lift", d, 7, 60, "min");
-    // Cardio: Tue/Sat early on; fades over the last 2 weeks (last session 9 days ago)
-    if ([2, 6].includes(w) && i > 9 && r() > (i < 25 ? 0.45 : 0.15)) add("demo-cardio", d, 18, Math.round(25 + r() * 20), "min");
-    if (i === 9) add("demo-cardio", d, 18, 35, "min");
-    // Read: sporadic at first, growing into a daily evening habit
-    const readP = i > 35 ? 0.35 : i > 14 ? 0.65 : 0.85;
-    if (r() < readP) add("demo-read", d, 22, [10, 15, 20, 25, 30, 40][Math.floor(r() * 6)], "min");
-    // Alcohol: logged on ~65% of days; weekends have drinks; zero check-ins otherwise
-    if (r() < 0.65) {
-      const weekend = w === 5 || w === 6;
-      const q = weekend ? 1 + Math.floor(r() * 3) : r() < 0.2 ? 1 : 0;
-      add("demo-alcohol", d, 21, i < 7 && weekend ? q + 1 : q, "drinks");
-    }
-    // Call family: roughly weekly on Sundays, sometimes Thursday
-    if ((w === 0 && r() > 0.25) || (w === 4 && r() > 0.8)) add("demo-family", d, 17, undefined, undefined, "Called mum");
-    // Sleep: logged most mornings
-    if (r() < 0.7) add("demo-sleep", d, 7, Math.round((6.2 + r() * 1.8) * 10) / 10, "h");
-  }
+  // Strength: every 2-3 days throughout; three in the last 7 days
+  for (const a of [1, 3, 6, 8, 10, 13, 15, 17, 20, 22, 25, 27, 29, 32, 34, 36, 39, 41]) add("demo-strength", a, 7, 55, "min");
+  // Cardio: steady twice a week until two weeks ago, then one session (3 days ago)
+  for (const a of [3, 12, 16, 19, 23, 26, 30, 33, 37, 40]) add("demo-cardio", a, 18, 30 + (a % 4) * 5, "min");
+  // Alcohol: logging complete; weekend drinks within the limit, one heavier week a month ago
+  for (const [a, q] of [[2, 1], [11, 2], [16, 1], [23, 2], [24, 2], [30, 1], [37, 2]] as const) add("demo-alcohol", a, 21, q, "drinks");
+  // Reading: most evenings
+  for (let a = 0; a <= 41; a++) if (![2, 5, 9, 12, 13, 16, 19, 20, 23, 26, 27, 30, 33, 34, 37, 40].includes(a)) add("demo-reading", a, 22, 20 + (a % 3) * 10, "min");
+  // Family: roughly fortnightly calls; last one 12 days ago
+  for (const a of [12, 25, 38]) add("demo-family", a, 17, undefined, undefined, "Called mum");
   return {
-    version: 1,
+    version: 2,
     habits,
     events,
-    settings: { timezone, mapOrder: "attention", onboarded: true, name: "Matthijs" },
+    settings: { timezone, mapOrder: "attention", defaultView: "map", onboarded: true, name: "Matthijs" },
   };
 }

@@ -21,12 +21,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     );
   return (
     <div className="mx-auto min-h-dvh max-w-md">
-      <main className="px-4 pb-44 pt-4">{children}</main>
+      <main className="px-4 pb-44 pt-6">{children}</main>
       <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="px-3">
           <ToastBar />
         </div>
-        <div className="bg-gradient-to-t from-cream via-cream/95 to-cream/0 pt-3">
+        <div className="bg-gradient-to-t from-ivory via-ivory/95 to-ivory/0 pt-3">
           <TellBar />
           <BottomNav />
         </div>

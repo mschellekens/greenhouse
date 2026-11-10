@@ -3,13 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --plant-bg: #FBF8F2;
+  --ivory: #F7F6F0;
+  --forest: #23382F;
+  --sage: #829985;
+  --leaf: #5E9070;
+  --ochre: #D9AF69;
+  --terracotta: #C97862;
+  --stone: #ECEDE5;
+  --gray: #788077;
+  --plant-bg: #F7F6F0;
 }
 
 html,
 body {
-  background: #F6F1E7;
-  color: #1B1F1C;
+  background: var(--ivory);
+  color: var(--forest);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -19,18 +27,25 @@ body {
 
 .font-display {
   font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
   letter-spacing: -0.01em;
 }
 
 @keyframes sway {
-  0%, 100% { transform: rotate(-1.2deg); }
-  50% { transform: rotate(1.2deg); }
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
 }
-.plant-sway {
-  animation: sway 6s ease-in-out infinite;
+.plant-sway { animation: sway 7s ease-in-out infinite; }
+
+/* Condition changes: the plant settles into its new state rather than snapping. */
+@keyframes settle {
+  from { opacity: 0.35; transform: translateY(3px) scale(0.985); filter: saturate(0.6); }
+  to { opacity: 1; transform: none; filter: none; }
 }
+.plant-settle { animation: settle 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
 @keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 .rise { animation: rise 0.35s ease-out both; }
@@ -38,17 +53,21 @@ body {
   from { transform: translateY(100%); }
   to { transform: none; }
 }
-.sheet { animation: sheet 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.sheet { animation: sheet 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.tint-transition { transition: background-color 0.9s ease, border-color 0.9s ease, color 0.9s ease; }
 
 @media (prefers-reduced-motion: reduce) {
-  .plant-sway, .rise, .sheet { animation: none !important; }
+  .plant-sway, .plant-settle, .rise, .sheet { animation: none !important; }
+  .tint-transition { transition: none; }
 }
 
-.glass {
+.glasshouse {
   background-image:
-    linear-gradient(to right, rgba(31, 58, 46, 0.05) 1px, transparent 1px),
-    linear-gradient(180deg, #EEF3EA 0%, #F6F1E7 70%);
-  background-size: 64px 100%, 100% 100%;
+    linear-gradient(to right, rgba(35, 56, 47, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, #EEF1EA 0%, #F7F6F0 75%);
+  background-size: 72px 100%, 100% 100%;
 }
 
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }

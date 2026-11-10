@@ -25,9 +25,10 @@ Return ONLY JSON matching one of:
 {"kind":"none","message":string}
 Rules: only use habitIds from the provided list. Never invent a number that isn't in the text; if a quantity is required (type quantity or limit) and missing, ask a followup. Resolve relative dates against "today" in the given timezone; never return future dates. If the habit is ambiguous, ask a followup.`;
 
-const SYSTEM_GOALS = `You turn a user's description of habits they want into proposed habits.
-Return ONLY JSON: {"habits":[{"key":string,"name":string,"type":"frequency"|"limit"|"quantity","category":"Movement"|"Mind"|"Nourishment"|"Connection"|"Rest"|"Other","plant":"olive"|"fern"|"lavender"|"monstera"|"snake"|"succulent","keywords":string[],"goal":{"target"?:number,"period":"day"|"week"|"month","unit"?:string},"assumptions":string[],"followUp"?:{"question":string,"options":[{"label":string,"patch":{"target":number,"period":"day"|"week"|"month","unit"?:string,"type"?:string}}]},"sourceText":string}]}
-Never invent a target the user didn't give; leave target out and add a followUp instead. Note any assumption (like an inferred period) in assumptions.`;
+const SYSTEM_GOALS = `You turn a user's description of habits they want into proposed habits for Greenhouse.
+Return ONLY JSON: {"habits":[{"key":string,"name":string,"emoji"?:string,"type":"frequency"|"limit"|"quantity","direction":"more"|"maintain"|"less","category"?:"Movement"|"Health"|"Mind"|"Relationships"|"Recovery"|"Lifestyle","plant":"olive"|"fern"|"ficus"|"monstera"|"lavender"|"ivy"|"rosemary","keywords":string[],"goal":{"target"?:number,"windowDays":number,"unit"?:string,"quantityMode"?:"total"|"average"},"assumptions":string[],"followUp"?:{"question":string,"short":"Needs a frequency"|"Needs a limit","options":[{"label":string,"patch":{"target":number,"windowDays":number,"unit"?:string}}]},"sourceText":string}]}
+Goals are rolling windows: "3 times a week" = target 3, windowDays 7; "every two weeks" = target 1, windowDays 14; daily = windowDays 1. "Drink less X" is type limit, direction less. Keeping something steady (e.g. calling family) is direction maintain.
+Never invent a target the user didn't give; leave target out and add a followUp instead (short "Needs a limit" for limits, otherwise "Needs a frequency"). Note any assumption in assumptions.`;
 
 async function callLLM(system: string, user: string): Promise<string> {
   const p = provider();

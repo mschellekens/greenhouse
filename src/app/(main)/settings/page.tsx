@@ -2,21 +2,25 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/lib/store";
-
-const INTEGRATIONS = [
-  { name: "Apple Health", what: "Workouts, sleep, steps" },
-  { name: "Google Fit / Health Connect", what: "Workouts, steps" },
-  { name: "Strava", what: "Runs and rides" },
-  { name: "Oura", what: "Sleep" },
-  { name: "Google Calendar", what: "Gym sessions, calls" },
-];
+import { ConditionLabel } from "@/components/Condition";
+import { goalSentence, currentGoal } from "@/lib/format";
+import { INTEGRATIONS } from "@/lib/integrations";
 
 function Row({ label, value, tone = "muted" }: { label: string; value: string; tone?: "ok" | "muted" }) {
   return (
-    <div className="flex items-center justify-between py-2.5 text-sm">
+    <div className="flex items-center justify-between gap-3 py-2.5 text-[14px]">
       <span>{label}</span>
-      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${tone === "ok" ? "bg-sage-100 text-forest" : "bg-cream-200 text-ink-500"}`}>{value}</span>
+      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[12px] ${tone === "ok" ? "bg-sage-100 text-leaf-ink" : "bg-stone text-muted-strong"}`}>{value}</span>
     </div>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl bg-white/70 px-4 py-2">
+      <h2 className="pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-strong">{title}</h2>
+      {children}
+    </section>
   );
 }
 
@@ -31,7 +35,6 @@ export default function SettingsPage() {
       .then((j) => setLlm(j.available ? `On (${j.provider})` : "Not configured"))
       .catch(() => setLlm("Not configured"));
   }, []);
-  const archived = app.state.habits.filter((h) => h.archivedAt);
 
   function exportData() {
     const blob = new Blob([JSON.stringify(app.state, null, 2)], { type: "application/json" });
@@ -41,83 +44,106 @@ export default function SettingsPage() {
     a.click();
   }
 
+  const s = app.state.settings;
   return (
-    <div className="space-y-5">
-      <h1 className="font-display text-3xl text-forest">Settings</h1>
+    <div className="space-y-4">
+      <h1 className="font-display text-[40px] leading-tight text-forest">Settings</h1>
 
-      <section className="rounded-3xl bg-white px-4 py-2 shadow-sm">
-        <label className="flex items-center justify-between py-2.5 text-sm">
+      <Card title="Habits">
+        <ul>
+          {app.state.habits.map((h) => (
+            <li key={h.id} className="flex items-center justify-between gap-2 border-b border-forest/5 py-2.5 last:border-0">
+              <Link href={`/habit/${h.id}`} className="min-w-0">
+                <div className="truncate text-[14px]">
+                  {h.name}
+                  {h.archivedAt && <span className="ml-1 text-[12px] text-muted-strong">(archived)</span>}
+                </div>
+                <div className="text-[12px] text-muted-strong">{goalSentence(h.type, currentGoal(h), h.direction)}</div>
+              </Link>
+              {h.archivedAt ? (
+                <button className="text-[13px] text-forest" onClick={() => app.archiveHabit(h.id, false)}>
+                  Restore
+                </button>
+              ) : (
+                <ConditionLabel band={app.conditions[h.id].band} score={app.conditions[h.id].score} />
+              )}
+            </li>
+          ))}
+        </ul>
+        <Link href="/welcome?step=3" className="block py-2.5 text-[14px] text-forest">
+          + Add habits
+        </Link>
+      </Card>
+
+      <Card title="Preferences">
+        <label className="flex items-center justify-between py-2.5 text-[14px]">
           Name
-          <input value={app.state.settings.name ?? ""} onChange={(e) => app.setSettings({ name: e.target.value })} className="w-40 rounded-lg border border-forest/15 px-2 py-1 text-right" placeholder="Optional" />
+          <input value={s.name ?? ""} onChange={(e) => app.setSettings({ name: e.target.value })} className="w-40 rounded-lg border border-forest/15 bg-white px-2 py-1 text-right" placeholder="Optional" />
         </label>
-        <label className="flex items-center justify-between py-2.5 text-sm">
+        <div className="flex items-center justify-between py-2.5 text-[14px]">
+          Default view
+          <div className="flex rounded-full bg-stone p-0.5 text-[12px]">
+            {(["map", "garden"] as const).map((v) => (
+              <button key={v} onClick={() => app.setSettings({ defaultView: v })} aria-pressed={s.defaultView === v} className={`rounded-full px-3 py-1 ${s.defaultView === v ? "bg-white font-medium shadow-sm" : "text-muted-strong"}`}>
+                {v === "map" ? "Map" : "Garden"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center justify-between py-2.5 text-[14px]">
           Time zone
-          <select value={app.state.settings.timezone} onChange={(e) => app.setSettings({ timezone: e.target.value })} className="w-48 rounded-lg border border-forest/15 bg-white px-2 py-1 text-right">
+          <select value={s.timezone} onChange={(e) => app.setSettings({ timezone: e.target.value })} className="w-48 rounded-lg border border-forest/15 bg-white px-2 py-1 text-right">
             {zones.map((z) => (
               <option key={z}>{z}</option>
             ))}
           </select>
         </label>
-        <p className="pb-2 text-xs text-ink-400">Entries keep the calendar day they were logged on. Changing zones won&apos;t move past entries.</p>
-      </section>
+        <Row label="Reminders" value="Off" />
+        <p className="pb-2 text-[12px] text-muted-strong">Times are stored in UTC; each entry keeps the local day it happened. Reminders stay off by default; a restrained weekly digest is planned.</p>
+      </Card>
 
-      <section className="rounded-3xl bg-white px-4 py-2 shadow-sm">
-        <h2 className="pt-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Data &amp; parsing</h2>
-        <Row label="Storage on this device" value="Active" tone="ok" />
-        <Row label="Cloud sync (Supabase)" value="Not connected" />
-        <Row label="Understanding your words" value="Built-in rules" tone="ok" />
-        <Row label="AI parsing (LLM)" value={llm} tone={llm.startsWith("On") ? "ok" : "muted"} />
-        <p className="pb-2 text-xs text-ink-400">Without cloud sync, data lives only in this browser. Export it before clearing browser data.</p>
-      </section>
-
-      <section className="rounded-3xl bg-white px-4 py-2 shadow-sm">
-        <h2 className="pt-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Integrations</h2>
+      <Card title="Integrations">
         {INTEGRATIONS.map((i) => (
-          <div key={i.name} className="flex items-center justify-between py-2.5 text-sm">
+          <div key={i.name} className="flex items-center justify-between gap-3 py-2.5 text-[14px]">
             <div>
               <div>{i.name}</div>
-              <div className="text-xs text-ink-400">{i.what}</div>
+              <div className="text-[12px] text-muted-strong">Could help with: {i.helps}</div>
             </div>
-            <span className="rounded-full bg-cream-200 px-2.5 py-0.5 text-xs text-ink-500">Not connected · coming later</span>
+            <span className="shrink-0 rounded-full bg-stone px-2.5 py-0.5 text-[12px] text-muted-strong">Not available yet</span>
           </div>
         ))}
-        <p className="pb-2 text-xs text-ink-400">None of these are connected. Nothing is imported automatically yet.</p>
-      </section>
+        <p className="pb-2 text-[12px] text-muted-strong">Nothing is connected and nothing is imported automatically. When integrations arrive they will be opt-in, ask only for what they need, and mark imported entries with their source.</p>
+      </Card>
 
-      {archived.length > 0 && (
-        <section className="rounded-3xl bg-white px-4 py-2 shadow-sm">
-          <h2 className="pt-2 text-xs font-semibold uppercase tracking-wide text-ink-400">Archive</h2>
-          {archived.map((h) => (
-            <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
-              <Link href={`/habit/${h.id}`}>{h.name}</Link>
-              <button className="text-forest" onClick={() => app.archiveHabit(h.id, false)}>
-                Restore
-              </button>
-            </div>
-          ))}
-        </section>
-      )}
-
-      <section className="flex flex-col gap-2">
-        <button className="h-11 rounded-full border border-forest/20 text-sm font-medium" onClick={() => {
-            if (app.state.habits.length && !window.confirm("Replace your current habits and logs with the example greenhouse?")) return;
-            app.loadDemo();
-          }}>
-          Load example greenhouse
-        </button>
-        <button className="h-11 rounded-full border border-forest/20 text-sm font-medium" onClick={exportData}>
-          Export my data (JSON)
-        </button>
-        {confirmReset ? (
-          <button className="h-11 rounded-full bg-clay text-sm font-semibold text-white" onClick={() => app.resetAll()}>
-            Tap again to erase everything
+      <Card title="Data">
+        <Row label="Stored on this device" value="Active" tone="ok" />
+        <Row label="Account & cloud sync" value="Not connected" />
+        <Row label="Understanding your words" value="Built-in rules" tone="ok" />
+        <Row label="AI language model" value={llm} tone={llm.startsWith("On") ? "ok" : "muted"} />
+        <div className="flex flex-col gap-2 py-3">
+          <button className="h-11 rounded-full border border-forest/20 text-sm" onClick={exportData}>
+            Export my data (JSON)
           </button>
-        ) : (
-          <button className="h-11 rounded-full text-sm font-medium text-clay" onClick={() => setConfirmReset(true)}>
-            Erase all data
+          <button
+            className="h-11 rounded-full border border-forest/20 text-sm"
+            onClick={() => {
+              if (app.state.habits.length && !window.confirm("Replace your current habits and entries with the example greenhouse?")) return;
+              app.loadDemo();
+            }}
+          >
+            Load example greenhouse
           </button>
-        )}
-      </section>
+          {confirmReset ? (
+            <button className="h-11 rounded-full bg-terracotta-ink text-sm text-white" onClick={() => app.resetAll()}>
+              Tap again to erase everything on this device
+            </button>
+          ) : (
+            <button className="h-11 rounded-full text-sm text-terracotta-ink" onClick={() => setConfirmReset(true)}>
+              Erase all data
+            </button>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }
