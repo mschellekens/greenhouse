@@ -22,7 +22,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </main>
     );
   return (
-    <div className={`mx-auto min-h-dvh max-w-md ${wide ? "md:max-w-3xl" : ""}`}>
+    <div className={`mx-auto min-h-dvh max-w-md ${wide ? "md:max-w-5xl" : ""}`}>
       <main className="px-4 pb-44 pt-6">{children}</main>
       <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="px-3">

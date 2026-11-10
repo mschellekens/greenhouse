@@ -31,6 +31,8 @@ interface SP {
   r: R;
   potW: number;
   tint: (c: string) => string;
+  /** fullness multiplier for leaf / stem counts (0.4 sad .. 1.25 lush) */
+  f: number;
 }
 
 /** pointed leaf along +x */
@@ -51,11 +53,12 @@ function Seedling({ tint, r }: { tint: SP["tint"]; r: R }) {
   );
 }
 
-function Succulent({ s, h, r, tint }: SP) {
+function Succulent({ s, h, r, tint, f }: SP) {
   const k = SC[s];
   const d = (1 - h) * 0.45;
   const out: React.ReactNode[] = [];
-  const ring = (n: number, from: number, to: number, L: number, w: number, col: string, y: number, key: string) => {
+  const ring = (n0: number, from: number, to: number, L: number, w: number, col: string, y: number, key: string) => {
+    const n = Math.max(3, Math.round(n0 * f));
     for (let i = 0; i < n; i++) {
       const a = sag(from + ((to - from) * i) / (n - 1) + (r() - 0.5) * 6, d);
       out.push(<path key={`${key}${i}`} d={leafPath(L * (0.9 + r() * 0.2), w)} transform={`translate(0,${y}) rotate(${a})`} fill={col} />);
@@ -66,7 +69,7 @@ function Succulent({ s, h, r, tint }: SP) {
       }
     }
   };
-  if (s === 3) {
+  if (s === 3 || (s === 2 && h > 0.85)) {
     out.push(<path key="stalk" d={`M2,-4 C12,-16 15,-30 11,-44`} stroke={tint("#93AC82")} strokeWidth={1.4} fill="none" strokeLinecap="round" />);
     [[11, -44], [14, -40], [8, -40.5], [15.5, -35]].forEach(([x, y], i) => out.push(<ellipse key={`fl${i}`} cx={x} cy={y} rx={2.1} ry={2.6} fill={i % 2 ? "#E3876B" : "#EE9E7C"} transform={`rotate(20 ${x} ${y})`} />));
   }
@@ -102,7 +105,7 @@ function Cactus({ s, h, r, tint }: SP) {
       ))}
       <path d={`M${-cw / 2 + 2},-2 L${-cw / 2 + 2},${-H + cw / 1.6}`} stroke="#FFFFFF" strokeWidth={1.2} opacity={0.22} strokeLinecap="round" />
       {spines}
-      {s === 3 && h > 0.6 && (
+      {(s === 3 || (s === 2 && h > 0.85)) && h > 0.6 && (
         <g transform={`translate(0,${-H - 1})`}>
           {[0, 72, 144, 216, 288].map((a) => (
             <ellipse key={a} cx={Math.cos(rad(a - 90)) * 3} cy={Math.sin(rad(a - 90)) * 2} rx={2.6} ry={1.8} transform={`rotate(${a} ${Math.cos(rad(a - 90)) * 3} ${Math.sin(rad(a - 90)) * 2})`} fill="#E88FA0" />
@@ -114,8 +117,8 @@ function Cactus({ s, h, r, tint }: SP) {
   );
 }
 
-function TrailingTop({ s, r, tint }: SP) {
-  const n = 3 + s * 2;
+function TrailingTop({ s, r, tint, f }: SP) {
+  const n = Math.max(2, Math.round((3 + s * 2) * f));
   const out: React.ReactNode[] = [];
   for (let i = 0; i < n; i++) {
     const a = -150 + (120 * i) / (n - 1) + (r() - 0.5) * 14;
@@ -126,14 +129,14 @@ function TrailingTop({ s, r, tint }: SP) {
   }
   return <g>{out}</g>;
 }
-function TrailingFront({ s, h, r, potW, tint }: SP) {
-  const vines = s;
+function TrailingFront({ s, h, r, potW, tint, f }: SP) {
+  const vines = Math.max(1, Math.round(s * Math.min(1.34, f)));
   const out: React.ReactNode[] = [];
   const sides = [-1, 1, -1];
   for (let v = 0; v < vines; v++) {
     const dir = sides[v];
     const x0 = dir * (potW / 2 - 4 - v * 3);
-    const L = [0, 16, 30, 46][s] * (0.75 + r() * 0.35) * (1 + (1 - h) * 0.15);
+    const L = [0, 16, 30, 46][s] * (0.75 + r() * 0.35) * (0.55 + 0.6 * h);
     const ex = x0 + dir * (7 + r() * 5);
     const p = `M${x0},-1 C${x0 + dir * 9},-3 ${ex + dir * 2},6 ${ex},${L}`;
     out.push(<path key={`v${v}`} d={p} stroke={tint("#5E8E4E")} strokeWidth={1} fill="none" />);
@@ -149,8 +152,8 @@ function TrailingFront({ s, h, r, potW, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Fern({ s, h, r, tint }: SP) {
-  const n = [0, 4, 6, 9][s];
+function Fern({ s, h, r, tint, f }: SP) {
+  const n = Math.max(3, Math.round([0, 4, 6, 9][s] * f));
   const d = 1 - h;
   const out: React.ReactNode[] = [];
   for (let i = 0; i < n; i++) {
@@ -180,12 +183,12 @@ function Fern({ s, h, r, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Geranium({ s, h, r, tint }: SP) {
+function Geranium({ s, h, r, tint, f }: SP) {
   const k = SC[s];
   const R = 12 * k;
-  const n = 4 + s * 3;
+  const n = Math.max(3, Math.round((4 + s * 3) * f));
   const out: React.ReactNode[] = [];
-  const flowers = s === 3 ? (h > 0.6 ? 3 : 2) : s === 2 ? (h > 0.6 ? 1 : 0) : 0;
+  const flowers = h < 0.45 ? 0 : s === 3 ? (h > 0.85 ? 4 : h > 0.6 ? 3 : 1) : s === 2 ? (h > 0.85 ? 2 : h > 0.6 ? 1 : 0) : h > 0.9 ? 1 : 0;
   for (let f = 0; f < flowers; f++) {
     const fx = (f - (flowers - 1) / 2) * 11 * k + (r() - 0.5) * 3;
     const fy = -R * 2.3 - r() * 5 + (1 - h) * 6;
@@ -212,7 +215,7 @@ function Geranium({ s, h, r, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Tree({ s, h, r, tint, kind }: SP & { kind: "citrus" | "olive" }) {
+function Tree({ s, h, r, tint, kind, f }: SP & { kind: "citrus" | "olive" }) {
   const k = SC[s];
   const T = (kind === "olive" ? 30 : 26) * k + 6;
   const crown = (kind === "olive" ? 15 : 14) * k + 3;
@@ -225,7 +228,7 @@ function Tree({ s, h, r, tint, kind }: SP & { kind: "citrus" | "olive" }) {
     out.push(<path key="b1" d={`M0,${-T * 0.75} Q-6,${-T * 0.95} -9,${-T - 3}`} stroke="#7A5B42" strokeWidth={1.3} fill="none" />);
     out.push(<path key="b2" d={`M0,${-T * 0.8} Q6,${-T * 0.98} 9,${-T - 2}`} stroke="#7A5B42" strokeWidth={1.3} fill="none" />);
   }
-  const n = 8 + s * 7;
+  const n = Math.max(4, Math.round((8 + s * 7) * f));
   const cy = -T - crown * 0.45 + (1 - h) * 3;
   for (let i = 0; i < n; i++) {
     const a = r() * Math.PI * 2;
@@ -235,7 +238,7 @@ function Tree({ s, h, r, tint, kind }: SP & { kind: "citrus" | "olive" }) {
     const ang = (a * 180) / Math.PI + (1 - h) * 40;
     out.push(<path key={`l${i}`} d={leafPath(kind === "olive" ? 8 : 7.5, kind === "olive" ? 1.6 : 2.9)} transform={`translate(${x},${y}) rotate(${ang})`} fill={tint(i % 2 ? leafA : leafB)} />);
   }
-  const fruits = s === 3 ? (h > 0.6 ? 5 : 3) : s === 2 ? 1 : 0;
+  const fruits = h < 0.45 ? 0 : s === 3 ? (h > 0.85 ? 6 : h > 0.6 ? 4 : 1) : s === 2 ? (h > 0.7 ? 2 : 0) : 0;
   for (let i = 0; i < fruits; i++) {
     const a = r() * Math.PI * 2;
     const rr = (0.3 + r() * 0.6) * crown;
@@ -255,8 +258,8 @@ function Tree({ s, h, r, tint, kind }: SP & { kind: "citrus" | "olive" }) {
   return <g>{out}</g>;
 }
 
-function Snake({ s, h, r, tint }: SP) {
-  const n = [0, 3, 5, 7][s];
+function Snake({ s, h, r, tint, f }: SP) {
+  const n = Math.max(2, Math.round([0, 3, 5, 7][s] * f));
   const out: React.ReactNode[] = [];
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0 : i / (n - 1) - 0.5;
@@ -277,16 +280,16 @@ function Snake({ s, h, r, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Lavender({ s, h, r, tint }: SP) {
+function Lavender({ s, h, r, tint, f }: SP) {
   const k = SC[s];
   const out: React.ReactNode[] = [];
-  const base = 7 + s * 3;
+  const base = Math.max(4, Math.round((7 + s * 3) * f));
   for (let i = 0; i < base; i++) {
     const a = -160 + (140 * i) / (base - 1) + (r() - 0.5) * 10;
     const L = (9 + r() * 4) * k;
     out.push(<path key={`g${i}`} d={leafPath(L, 1.3)} transform={`rotate(${sag(a, (1 - h) * 0.3)})`} fill={tint(i % 2 ? "#93AB95" : "#A8BCA6")} />);
   }
-  const spikes = s >= 2 ? (s === 3 ? 7 : 4) - (h < 0.6 ? 2 : 0) : 0;
+  const spikes = h < 0.4 ? (s >= 2 ? 1 : 0) : s >= 2 ? Math.round((s === 3 ? 7 : 4) * f) - (h < 0.6 ? 2 : 0) : h > 0.9 ? 2 : 0;
   for (let i = 0; i < spikes; i++) {
     const t = spikes === 1 ? 0 : i / (spikes - 1) - 0.5;
     const L = (30 + r() * 10) * k;
@@ -304,8 +307,8 @@ function Lavender({ s, h, r, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Monstera({ s, h, r, tint }: SP) {
-  const n = [0, 2, 3, 5][s];
+function Monstera({ s, h, r, tint, f }: SP) {
+  const n = Math.max(1, Math.round([0, 2, 3, 5][s] * f));
   const out: React.ReactNode[] = [];
   for (let i = 0; i < n; i++) {
     const t = n === 1 ? 0.5 : i / (n - 1);
@@ -334,8 +337,8 @@ function Monstera({ s, h, r, tint }: SP) {
   return <g>{out}</g>;
 }
 
-function Rubber({ s, h, r, tint }: SP) {
-  const n = [0, 3, 5, 7][s];
+function Rubber({ s, h, r, tint, f }: SP) {
+  const n = Math.max(2, Math.round([0, 3, 5, 7][s] * f));
   const H = (16 + s * 10) * 1.05;
   const out: React.ReactNode[] = [];
   out.push(<path key="stem" d={`M0,0 Q${(r() - 0.5) * 4},${-H / 2} 0,${-H}`} stroke="#6B5A40" strokeWidth={1.8} fill="none" />);
@@ -353,7 +356,7 @@ function Rubber({ s, h, r, tint }: SP) {
       </g>,
     );
   }
-  if (s === 3) out.push(<path key="sheath" d={`M0,${-H} q-1.6,-5 0,-9 q1.6,4 0,9Z`} fill="#B6584D" />);
+  if (s === 3 && h > 0.5) out.push(<path key="sheath" d={`M0,${-H} q-1.6,-5 0,-9 q1.6,4 0,9Z`} fill="#B6584D" />);
   return <g>{out}</g>;
 }
 
@@ -433,14 +436,40 @@ export interface PottedPlantProps {
   sway?: boolean;
   grow?: boolean;
   paused?: boolean;
+  /** painted on the pot, e.g. goal attainment "67%" */
+  label?: string;
 }
 
-export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, potH = 30, sway = true, grow = false }: PottedPlantProps) {
-  const h = health;
-  const tint = (c: string) => mixHex(PALE, c, 0.2 + 0.8 * h);
+const SPILL: Partial<Record<Species, [string, string]>> = {
+  fern: ["#6A9B58", "#7CAD63"],
+  geranium: ["#6E9F5B", "#7FAE66"],
+  citrus: ["#4E8A4E", "#6CA35B"],
+  olive: ["#8DA383", "#A9B99B"],
+  lavender: ["#93AB95", "#A8BCA6"],
+  monstera: ["#3F7A4E", "#4F8B57"],
+  rubber: ["#2F5E44", "#3A6B4E"],
+  snake: ["#4C7D55", "#5A8D5E"],
+};
+const BROWNS = ["#A27B47", "#B08B55", "#8E6A3E", "#B99A62"];
+
+export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, potH = 30, sway = true, grow = false, label }: PottedPlantProps) {
+  // health is vitality: 0 = very sad, 1 = big and lush (continuous with the score)
+  const v = Math.max(0, Math.min(1, health));
+  const h = v;
+  const br = seededRandom(`brown:${id}`);
+  const brownChance = Math.max(0, (0.55 - v) * 1.2);
+  const tint = (c: string) => {
+    if (br() < brownChance) return BROWNS[Math.floor(br() * BROWNS.length)];
+    return mixHex(PALE, c, 0.12 + 0.88 * Math.pow(v, 0.85));
+  };
   const r = seededRandom(`plant:${id}`);
-  const props: SP = { s: stage, h, r, potW, tint };
+  const f = stage === 0 ? 1 : 0.4 + 0.85 * v;
+  const props: SP = { s: stage, h, r, potW, tint, f };
   const pot = POTS[potIndex % POTS.length];
+  const size = (stage === 0 ? 1.1 : 1.32) * (0.55 + 0.7 * v);
+  const fr = seededRandom(`fall:${id}`);
+  const dir = fr() > 0.5 ? 1 : -1;
+  const wilt = Math.max(0, 0.45 - v);
   let back: React.ReactNode;
   let front: React.ReactNode = null;
   if (stage === 0) back = <Seedling tint={tint} r={r} />;
@@ -481,15 +510,65 @@ export function PottedPlant({ id, species, stage, health, potIndex, potW = 38, p
         back = <Rubber {...props} />;
         break;
     }
+  // lush plants spill over the rim
+  const spill: React.ReactNode[] = [];
+  if (stage >= 2 && v > 0.78) {
+    const cols = SPILL[species];
+    const sr = seededRandom(`spill:${id}`);
+    if (cols) {
+      const n = 2 + Math.round((v - 0.78) * 22);
+      for (let i = 0; i < n; i++) {
+        const x = (-0.5 + (i + 0.5) / n) * potW * 0.95 + (sr() - 0.5) * 3;
+        const L = 7 + sr() * 5;
+        const ang = 90 + (x < 0 ? 25 : -25) + (sr() - 0.5) * 30;
+        spill.push(<path key={i} d={leafPath(L, L * 0.3)} transform={`translate(${x},-1) rotate(${ang})`} fill={cols[i % 2]} />);
+      }
+    } else if (species === "succulent" || species === "cactus") {
+      [-1, 1].forEach((side, i) => {
+        const x = side * (potW / 2 - 3);
+        spill.push(
+          <g key={i} transform={`translate(${x},-1)`}>
+            {[-150, -110, -70, -30].map((a) => (
+              <path key={a} d={leafPath(5.5, 2.2)} transform={`rotate(${a})`} fill={species === "cactus" ? "#6C9A69" : i ? "#93BCAA" : "#7EA899"} />
+            ))}
+          </g>,
+        );
+      });
+    }
+  }
+  // sad plants drop a few leaves on the shelf
+  const fallen: React.ReactNode[] = [];
+  const nFall = v < 0.5 && stage > 0 ? Math.min(4, Math.round((0.5 - v) * 9)) : 0;
+  for (let i = 0; i < nFall; i++) {
+    const side = i % 2 ? -dir : dir;
+    const x = side * (potW / 2 + 3 + fr() * 9);
+    fallen.push(<path key={i} d={leafPath(5 + fr() * 2.5, 1.8)} transform={`translate(${x},${potH - 0.8}) rotate(${side > 0 ? -8 - fr() * 18 : 188 + fr() * 18})`} fill={BROWNS[i % BROWNS.length]} />);
+  }
   const delay = (r() * 6).toFixed(2);
+  const sad = wilt > 0 ? ` rotate(${(wilt * 34 * dir).toFixed(1)}) scale(1,${(1 - wilt * 0.35).toFixed(3)})` : "";
   return (
     <g className={grow ? "gh-grow" : undefined}>
       <ellipse cx={0} cy={potH + 0.5} rx={potW * 0.5} ry={2.4} fill="#3B2A1E" opacity={0.16} />
-      <g className={sway ? "gh-sway" : undefined} style={sway ? { animationDelay: `-${delay}s`, animationDuration: `${6 + (Number(delay) % 3)}s` } : undefined}>
-        <g transform="scale(1.32)">{back}</g>
+      {fallen}
+      <g className={sway && v > 0.3 ? "gh-sway" : undefined} style={sway && v > 0.3 ? { animationDelay: `-${delay}s`, animationDuration: `${6 + (Number(delay) % 3)}s` } : undefined}>
+        <g transform={`scale(${size.toFixed(3)})${sad}`}>{back}</g>
       </g>
       <Pot w={potW} h={potH} style={pot} />
-      <g transform="scale(1.12)">{front}</g>
+      <g transform={`scale(${(1.12 * (0.7 + 0.45 * v)).toFixed(3)})`}>{front}</g>
+      {spill}
+      {label && (
+        <text
+          x={0}
+          y={potH * 0.62}
+          textAnchor="middle"
+          fontSize={Math.min(12, potW * 0.3)}
+          fill={pot.body === "#EDE5D3" || pot.body === "#D9AF69" ? "#23382F" : "#FBF3E4"}
+          opacity={0.92}
+          style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", letterSpacing: "0.02em" }}
+        >
+          {label}
+        </text>
+      )}
     </g>
   );
 }

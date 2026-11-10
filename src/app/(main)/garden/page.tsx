@@ -5,23 +5,12 @@ import { HabitSummary } from "@/components/HabitDetail";
 import { BAND_LABEL } from "@/lib/attention";
 import { greeting } from "@/lib/format";
 import { ViewToggle } from "@/components/Nav";
-import { GreenhouseScene, sceneLayout, BAY_W, BAY_H, type Zone } from "@/components/greenhouse/Scene";
-import { collectionFor, healthFor, joinedMessage, newPlantsSince, shelfCaption, STAGE_LABEL, SPECIES_LABEL } from "@/lib/garden";
+import { GreenhouseInterior, SCENE_W, SCENE_H, type Zone } from "@/components/greenhouse/Interior";
+import { PanZoom } from "@/components/greenhouse/PanZoom";
+import { attainment, collectionFor, formatPercent, joinedMessage, newPlantsSince, shelfCaption, vitalityFor, STAGE_LABEL, SPECIES_LABEL } from "@/lib/garden";
 import { scoreColor } from "@/lib/scoring";
 
 const SEEN_KEY = "greenhouse:garden-seen";
-
-function useWide() {
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia("(min-width: 768px)");
-    const on = () => setWide(m.matches);
-    on();
-    m.addEventListener("change", on);
-    return () => m.removeEventListener("change", on);
-  }, []);
-  return wide;
-}
 
 function useReducedMotion() {
   const [r, setR] = useState(false);
@@ -40,7 +29,6 @@ export default function GardenPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [banner, setBanner] = useState<string | null>(null);
-  const wide = useWide();
   const reduced = useReducedMotion();
   const open = app.activeHabits.find((h) => h.id === openId);
 
@@ -49,19 +37,21 @@ export default function GardenPage() {
     [app.activeHabits, app.state.events, app.today],
   );
 
-  const zones: Zone[] = app.activeHabits.map((h) => {
+  const zones: Zone[] = useMemo(() => app.activeHabits.map((h) => {
     const c = app.conditions[h.id];
     const col = collections[h.id];
+    const att = attainment(h, col.weeks);
     return {
       id: h.id,
       name: h.name,
       band: c.band,
       color: c.band === "paused" ? "#B9BDB4" : scoreColor(c.band === "unknown" ? null : c.score),
-      health: healthFor(c.band),
+      health: vitalityFor(c.score, c.band),
       plants: col.plants,
+      percent: att.ratio === null ? undefined : formatPercent(att.ratio),
       caption: shelfCaption(h, col, c.band === "paused"),
     };
-  });
+  }), [app.activeHabits, app.conditions, collections]);
 
   // New plants since the last visit: grow them in and say so, once.
   const allIds = zones.flatMap((z) => z.plants.map((p) => p.id));
@@ -103,8 +93,6 @@ export default function GardenPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const cols = wide && zones.length > 1 ? 2 : 1;
-  const L = sceneLayout(zones.length, cols);
   const openCol = open ? collections[open.id] : undefined;
 
   return (
@@ -130,35 +118,46 @@ export default function GardenPage() {
       )}
 
       <div className="relative -mx-4 overflow-hidden rounded-[2rem] md:mx-0">
-        <GreenhouseScene zones={zones} cols={cols} newIds={newIds} sway={!reduced} />
-        {zones.map((z, i) => {
-          const b = L.bays[i];
-          const h = app.activeHabits[i];
-          const c = app.conditions[h.id];
-          return (
-            <button
-              key={z.id}
-              onClick={() => setOpenId(z.id)}
-              className="absolute rounded-3xl transition hover:bg-white/10 focus-visible:bg-white/15"
-              style={{ left: `${(b.x / L.W) * 100}%`, top: `${(b.y / L.H) * 100}%`, width: `${(BAY_W / L.W) * 100}%`, height: `${(BAY_H / L.H) * 100}%` }}
-              aria-label={`${h.name}: ${BAND_LABEL[c.band]}. ${z.plants.length} plants. Open details`}
-            />
-          );
-        })}
+        <PanZoom width={SCENE_W} height={SCENE_H} viewportHeight={(w) => (w >= 700 ? Math.max(460, (w * SCENE_H) / SCENE_W) : Math.min(520, Math.max(420, window.innerHeight * 0.58)))}>
+          <GreenhouseInterior zones={zones} newIds={newIds} onOpen={setOpenId} swayNear={!reduced} />
+        </PanZoom>
         {!zones.length && (
-          <div className="absolute inset-x-6 top-[38%] rounded-3xl bg-ivory/95 p-6 text-center shadow-sm">
+          <div className="absolute inset-x-6 top-[30%] rounded-3xl bg-ivory/95 p-6 text-center shadow-sm">
             <p className="font-display text-[24px] text-forest">An empty greenhouse</p>
-            <p className="mt-1 text-[14px] text-muted-strong">Add a habit and its shelf appears here. Your first plant arrives the first week you meet its goal.</p>
+            <p className="mt-1 text-[14px] text-muted-strong">Add a habit and it gets its own bench here. Your first plant arrives the first week you meet its goal.</p>
           </div>
         )}
+        <p className="pointer-events-none absolute left-4 top-3 rounded-full bg-ivory/80 px-3 py-1 text-[11px] text-muted-strong backdrop-blur">Drag to look around · pinch to zoom</p>
       </div>
+
+      {zones.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {zones.map((z, i) => {
+            const h = app.activeHabits[i];
+            const c = app.conditions[h.id];
+            return (
+              <button
+                key={z.id}
+                onClick={() => setOpenId(z.id)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-[13px] text-forest shadow-sm hover:bg-white"
+                aria-label={`${h.name}: ${BAND_LABEL[c.band]}. ${z.plants.length} plants${z.percent ? `, ${z.percent} goal attainment` : ""}. Open details`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ background: z.color }} aria-hidden />
+                {h.name}
+                {z.percent && <span className="text-muted-strong">{z.percent}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <details className="mt-4 rounded-2xl bg-stone/70 px-4 py-3 text-[14px] text-forest">
         <summary className="cursor-pointer select-none font-medium">How your greenhouse grows</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-strong">
-          <li>Each habit has its own shelf. Every week (Monday to Sunday) you meet its goal, a new potted plant joins that shelf. This week counts as soon as you get there.</li>
+          <li>Each habit has its own bench. Every week (Monday to Sunday) you meet its goal, a new potted plant joins it, filling from the front toward the back. This week counts as soon as you get there.</li>
           <li>Plants grow from seedling to young, mature and flourishing as the weeks pass, faster when you keep meeting the goal.</li>
-          <li>Plants you’ve earned stay. If a habit needs attention its shelf looks a little thirsty, and it perks up again as soon as you pick it back up.</li>
+          <li>How they look follows how the habit is doing right now: big, lush and spilling over when it thrives; small, brown and dropping leaves when it struggles. Earned plants always stay, and they recover as soon as you pick the habit back up.</li>
+          <li>The number painted on the front pot is goal attainment: each week counts up to its goal (overshooting one week doesn’t make up for another), averaged over every week you’ve tracked.</li>
         </ul>
       </details>
 
@@ -170,7 +169,7 @@ export default function GardenPage() {
               <p className="mb-2 text-[13px] text-muted-strong">
                 {openCol.plants.length ? (
                   <>
-                    {openCol.plants.length} plant{openCol.plants.length === 1 ? "" : "s"} on this shelf
+                    {openCol.plants.length} plant{openCol.plants.length === 1 ? "" : "s"} on this bench
                     {openCol.streak > 1 ? ` · ${openCol.streak} goal-weeks in a row` : ""}
                     {" · newest: "}
                     {SPECIES_LABEL[openCol.plants[openCol.plants.length - 1].species]} ({STAGE_LABEL[openCol.plants[openCol.plants.length - 1].stage]})

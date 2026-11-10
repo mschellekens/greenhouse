@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkHabit, ev } from "./testutil";
 import { buildDemoState } from "./demo";
 import { addDays } from "./dates";
+import { computeCondition } from "./scoring";
 import {
   collectionFor,
   currentStreak,
@@ -14,6 +15,9 @@ import {
   stageFor,
   weekResults,
   SIGNATURE,
+  attainment,
+  formatPercent,
+  vitalityFor,
 } from "./garden";
 
 // 2026-01-05 is a Monday.
@@ -173,8 +177,64 @@ describe("demo greenhouse", () => {
   it("has several weeks of plants for every habit and a fresh arrival this week", () => {
     const cols = s.habits.map((h) => collectionFor(h, s.events, TODAY));
     for (const c of cols) expect(c.plants.length).toBeGreaterThanOrEqual(3);
-    expect(cols.reduce((n, c) => n + c.plants.length, 0)).toBeGreaterThanOrEqual(20);
+    expect(cols.reduce((n, c) => n + c.plants.length, 0)).toBeGreaterThanOrEqual(100);
     expect(cols.some((c) => c.plants.some((p) => p.stage === 3))).toBe(true);
     expect(cols.some((c) => c.plants.some((p) => p.ageWeeks === 0))).toBe(true);
+  });
+});
+
+describe("goal attainment", () => {
+  const strength = mkHabit("frequency", { target: 3, windowDays: 7 }, { id: "att", startDate: MON, goals: [{ effectiveFrom: MON, target: 3, windowDays: 7 }] });
+  const sessions = (perWeek: number[]) => perWeek.flatMap((n, w) => Array.from({ length: n }, (_, i) => ev("att", day(w, i))));
+
+  it("3x a week, 10 weeks, 20 sessions spread evenly-ish = 67%", () => {
+    const evs = sessions([2, 2, 2, 2, 2, 2, 2, 2, 2, 2]);
+    const a = attainment(strength, weekResults(strength, evs, day(10, 0)));
+    expect(a.weeks).toBe(10);
+    expect(a.ratio!).toBeCloseTo(20 / 30, 5);
+    expect(formatPercent(a.ratio)).toBe("67%");
+  });
+  it("overshooting a week does not mask missed weeks", () => {
+    // 20 sessions again, but 7 + 7 + 6 in three weeks and nothing in seven others
+    const evs = sessions([7, 7, 6, 0, 0, 0, 0, 0, 0, 0]);
+    const a = attainment(strength, weekResults(strength, evs, day(10, 0)));
+    expect(a.ratio!).toBeCloseTo(9 / 30, 5);
+  });
+  it("the unfinished current week only counts once its goal is met", () => {
+    expect(attainment(strength, weekResults(strength, sessions([3, 1]), day(1, 2))).ratio).toBe(1);
+    const met = attainment(strength, weekResults(strength, sessions([3, 3]), day(1, 2)));
+    expect(met).toEqual({ ratio: 1, weeks: 2 });
+    expect(attainment(strength, weekResults(strength, sessions([1]), day(0, 2))).ratio).toBeNull();
+  });
+  it("paused weeks are left out", () => {
+    const p = { ...strength, pauses: [{ start: day(1, 0), end: day(1, 6) }] };
+    const a = attainment(p, weekResults(p, sessions([3, 0, 3]), day(3, 0)));
+    expect(a).toEqual({ ratio: 1, weeks: 2 });
+  });
+  it("limits: share of weeks within the limit", () => {
+    const lim = mkHabit("limit", { target: 2, windowDays: 7 }, { id: "lim", startDate: MON, completeLoggingSince: MON, goals: [{ effectiveFrom: MON, target: 2, windowDays: 7 }] });
+    const evs = [ev("lim", day(0, 4), 2), ev("lim", day(1, 4), 5), ev("lim", day(2, 4), 1), ev("lim", day(3, 5), 3)];
+    expect(attainment(lim, weekResults(lim, evs, day(4, 0))).ratio).toBeCloseTo(0.5, 5);
+  });
+  it("quantities: total vs target, capped per week", () => {
+    const q = mkHabit("quantity", { target: 100, windowDays: 7 }, { id: "qq", startDate: MON, goals: [{ effectiveFrom: MON, target: 100, windowDays: 7 }] });
+    const evs = [ev("qq", day(0, 1), 300), ev("qq", day(1, 1), 50)];
+    expect(attainment(q, weekResults(q, evs, day(2, 0))).ratio).toBeCloseTo(0.75, 5);
+  });
+  it("vitality follows the score continuously", () => {
+    expect(vitalityFor(100, "thriving")).toBe(1);
+    expect(vitalityFor(0, "needs-attention")).toBe(0);
+    expect(vitalityFor(55, "worth-attention")).toBeCloseTo(0.55);
+    expect(vitalityFor(null, "unknown")).toBeGreaterThan(0.4);
+  });
+  it("demo shows a thriving and a struggling shelf", () => {
+    const s = buildDemoState("2026-11-10", "Europe/Amsterdam");
+    const med = s.habits.find((h) => h.id === "demo-meditation")!;
+    const str = s.habits.find((h) => h.id === "demo-strength")!;
+    const cm = collectionFor(med, s.events, "2026-11-10");
+    expect(cm.plants.length).toBeGreaterThanOrEqual(3); // earned plants stay, even when struggling
+    expect(attainment(med, cm.weeks).ratio!).toBeLessThan(0.7);
+    expect(computeCondition(med, s.events, "2026-11-10").band).toBe("needs-attention");
+    expect(attainment(str, weekResults(str, s.events, "2026-11-10")).ratio!).toBeGreaterThan(0.85);
   });
 });

@@ -313,3 +313,51 @@ export function shelfCaption(habit: Habit, c: Collection, paused = false): strin
   if (w.target && goalAt(habit, w.weekEnd).windowDays > 7) return `${plants} · keep the rhythm going`;
   return `${plants} · ${r1(w.measure)} of ${r1(w.target)} this week`;
 }
+
+// ------------------------------------------------------------- attainment
+
+/**
+ * Goal attainment: how much of the goal you hit, week by week.
+ *   frequency / quantity totals: sum over weeks of min(done, goal) / (weeks * goal),
+ *     computed per week as min(1, done / goal) so overshooting one week never
+ *     masks a missed one (3x/week, 10 weeks, 20 sessions = 67%).
+ *   averages: min(1, average / target) per week (0 for a week with no logs).
+ *   limits: the share of weeks that stayed within the limit.
+ * Counted weeks: every finished week since tracking began, plus the current
+ * week once its goal is met (an unfinished week never drags the number down).
+ * Fully paused weeks are left out. Partial first weeks use their scaled goal.
+ */
+export interface Attainment {
+  /** 0-1, or null when there is no week to judge yet */
+  ratio: number | null;
+  weeks: number;
+}
+
+export function weekRatio(habit: Habit, w: WeekResult): number {
+  if (w.status === "paused") return 0;
+  if (habit.type === "limit") return w.status === "met" ? 1 : 0;
+  if (w.target <= 0) return w.status === "met" ? 1 : 0;
+  return Math.max(0, Math.min(1, w.measure / w.target));
+}
+
+export function attainment(habit: Habit, weeks: WeekResult[]): Attainment {
+  const counted = weeks.filter((w) => w.status !== "paused" && (!w.current || w.status === "met"));
+  if (!counted.length) return { ratio: null, weeks: 0 };
+  const sum = counted.reduce((s, w) => s + weekRatio(habit, w), 0);
+  return { ratio: sum / counted.length, weeks: counted.length };
+}
+
+export function formatPercent(ratio: number | null): string {
+  return ratio === null ? "–" : `${Math.round(ratio * 100)}%`;
+}
+
+/**
+ * How alive a shelf looks, continuous in the condition score: 0 = very sad
+ * (small, wilted, browned, dropping leaves), 1 = big, lush, flowering and
+ * spilling over the pot. Unknown sits in the middle; paused is held gently.
+ */
+export function vitalityFor(score: number | null, band: Band): number {
+  if (band === "paused") return 0.7;
+  if (score === null || band === "unknown") return 0.62;
+  return Math.max(0, Math.min(1, score / 100));
+}

@@ -1,7 +1,7 @@
 // Usage: node scripts/garden-shots.mjs [baseUrl] [prefix]
 import { chromium } from "playwright-core";
 const BASE = process.argv[2] ?? "http://localhost:3200/greenhouse";
-const PREFIX = process.argv[3] ?? "garden-v3";
+const PREFIX = process.argv[3] ?? "garden-v4";
 const OUT = new URL("../screenshots/", import.meta.url).pathname;
 const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox"] });
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: "Europe/Amsterdam" };
@@ -25,15 +25,37 @@ async function demo(opts, name, extra) {
 
 if (!only || only === "demo") {
   await demo(phone, "phone-demo", async (page) => {
-    await page.screenshot({ path: `${OUT}${PREFIX}-phone-demo-full.png`, fullPage: true });
-    await page.getByRole("button", { name: /^Cardio:/ }).click();
+    const box = await page.getByRole("img", { name: "Your greenhouse" }).boundingBox();
+    const drag = async (dx) => {
+      const y = 330;
+      await page.mouse.move(195, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 10; i++) await page.mouse.move(195 + (dx * i) / 10, y);
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+    };
+    void box;
+    await drag(520);
+    await page.screenshot({ path: `${OUT}${PREFIX}-phone-pan-left.png` });
+    await drag(-1040);
+    await page.screenshot({ path: `${OUT}${PREFIX}-phone-pan-right.png` });
+    await drag(520);
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}${PREFIX}-phone-zoomed.png` });
+    await page.getByRole("button", { name: "Fit" }).click();
+    await page.getByRole("button", { name: /^Meditation:/ }).click();
     await page.waitForTimeout(600);
     await page.screenshot({ path: `${OUT}${PREFIX}-phone-detail.png` });
+    await page.getByRole("link", { name: "Details" }).click();
+    await page.waitForURL("**/habit/**");
+    await page.getByText("Goal attainment").first().waitFor();
+    await page.getByRole("heading", { name: "Goal attainment" }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${OUT}${PREFIX}-phone-habit-attainment.png` });
     console.log("saved detail");
   });
-  await demo(desktop, "desktop-demo", async (page) => {
-    await page.screenshot({ path: `${OUT}${PREFIX}-desktop-demo-full.png`, fullPage: true });
-  });
+  await demo(desktop, "desktop-demo");
 }
 
 if (!only || only === "empty") {
@@ -57,7 +79,7 @@ if (!only || only === "empty") {
     await page.goto(`${BASE}/garden/`);
     await page.getByRole("img", { name: "Your greenhouse" }).waitFor();
     await page.waitForTimeout(800);
-    await page.screenshot({ path: `${OUT}${PREFIX}-${name}.png`, fullPage: name.startsWith("phone") });
+    await page.screenshot({ path: `${OUT}${PREFIX}-${name}.png` });
     console.log("saved", name);
     await ctx.close();
   }

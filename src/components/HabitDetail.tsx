@@ -12,6 +12,22 @@ import { BAND_LABEL, BAND_PHRASE, nextAction } from "@/lib/attention";
 import { currentGoal, DIRECTION_LABEL, goalSentence, SOURCE_LABEL } from "@/lib/format";
 import { addDays, formatDate, instantFor, relativeDay } from "@/lib/dates";
 import { proposeGoals } from "@/lib/parser/rules";
+import { attainment, collectionFor, formatPercent, weekRatio } from "@/lib/garden";
+
+/** Goal attainment: weeks capped at their goal, averaged over every tracked week. */
+export function useAttainment(habit: Habit) {
+  const app = useApp();
+  return useMemo(() => {
+    const col = collectionFor(habit, app.state.events, app.today);
+    return { ...attainment(habit, col.weeks), col };
+  }, [habit, app.state.events, app.today]);
+}
+
+function attainmentSentence(habit: Habit, a: { ratio: number | null; weeks: number }) {
+  if (a.ratio === null) return "Shows up after your first full week.";
+  const what = habit.type === "limit" ? "of weeks within your limit" : "of your goal hit";
+  return `${formatPercent(a.ratio)} ${what}, across ${a.weeks} week${a.weeks === 1 ? "" : "s"}.`;
+}
 
 const CATEGORIES: Category[] = ["Movement", "Health", "Mind", "Relationships", "Recovery", "Lifestyle"];
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -35,6 +51,7 @@ export function HabitSummary({ habit, onClose }: { habit: Habit; onClose?: () =>
   const app = useApp();
   const c = app.conditions[habit.id];
   const g = currentGoal(habit);
+  const att = useAttainment(habit);
   return (
     <div>
       <div className="flex items-start gap-2">
@@ -55,6 +72,10 @@ export function HabitSummary({ habit, onClose }: { habit: Habit; onClose?: () =>
         <div>
           <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Goal</dt>
           <dd>{goalSentence(habit.type, g, habit.direction)}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Goal attainment</dt>
+          <dd>{attainmentSentence(habit, att)}</dd>
         </div>
         <div>
           <dt className="text-[11px] uppercase tracking-wider text-muted-strong">Next</dt>
@@ -155,6 +176,8 @@ export function HabitDetail({ habit }: { habit: Habit }) {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const paused = c.band === "paused";
+  const att = useAttainment(habit);
+  const recentWeeks = att.col.weeks.filter((w) => w.status !== "paused").slice(-26);
 
   function applyNaturalGoal() {
     const p = proposeGoals(`${habit.name} ${nl}`)[0] ?? proposeGoals(nl)[0];
@@ -187,10 +210,42 @@ export function HabitDetail({ habit }: { habit: Habit }) {
         <p className="mt-2 font-display text-[21px] text-forest">“{BAND_PHRASE[c.band]}”</p>
         <p className="mt-1 max-w-xs text-[14px] text-muted-strong">{activitySentence(habit, c.summary)}</p>
         <p className="mt-1 max-w-xs text-[14px]">{nextAction(habit, app.state.events, app.today, c)}</p>
+        {att.ratio !== null && (
+          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-[12px] text-muted-strong">
+            <span className="font-display text-[16px] italic text-forest">{formatPercent(att.ratio)}</span> goal attainment · {att.weeks} weeks
+          </p>
+        )}
         <div className="mt-4">
           <QuickLog habit={habit} variant="panel" />
         </div>
       </section>
+
+      <Section title="Goal attainment">
+        <div className="flex items-baseline gap-3">
+          <span className="font-display text-[40px] leading-none text-forest">{formatPercent(att.ratio)}</span>
+          <span className="text-[14px] text-muted-strong">{attainmentSentence(habit, att)}</span>
+        </div>
+        {recentWeeks.length > 0 && (
+          <div className="mt-3">
+            <div className="flex h-10 items-end gap-[3px]" aria-label="Weekly attainment, oldest to newest">
+              {recentWeeks.map((w) => {
+                const r = w.current && w.status !== "met" ? null : weekRatio(habit, w);
+                return (
+                  <div
+                    key={w.weekStart}
+                    title={`Week of ${formatDate(w.weekStart)}: ${r === null ? "in progress" : formatPercent(r)}`}
+                    className="flex-1 rounded-t-sm"
+                    style={{ height: `${Math.max(8, (r ?? 0.06) * 100)}%`, background: r === null ? "#DCDED3" : r >= 1 ? "#5E9070" : r >= 0.5 ? "#D9AF69" : "#C97862", opacity: r === null ? 0.7 : 1 }}
+                  />
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[12px] text-muted-strong">
+              Each week counts up to its goal, so a big week can’t hide a missed one. {recentWeeks.length < att.col.weeks.length ? `Last ${recentWeeks.length} weeks shown.` : ""}
+            </p>
+          </div>
+        )}
+      </Section>
 
       <Section title="Activity">
         <details className="mb-1 rounded-2xl bg-sage-100 px-4 py-2 text-sm">
