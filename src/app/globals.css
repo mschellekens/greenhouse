@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --plant-bg: #FBF8F2;
+}
+
+html,
+body {
+  background: #F6F1E7;
+  color: #1B1F1C;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-serif), Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50% { transform: rotate(1.2deg); }
+}
+.plant-sway {
+  animation: sway 6s ease-in-out infinite;
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.35s ease-out both; }
+@keyframes sheet {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+.sheet { animation: sheet 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .plant-sway, .rise, .sheet { animation: none !important; }
+}
+
+.glass {
+  background-image:
+    linear-gradient(to right, rgba(31, 58, 46, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, #EEF3EA 0%, #F6F1E7 70%);
+  background-size: 64px 100%, 100% 100%;
+}
+
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
