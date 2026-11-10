@@ -56,8 +56,17 @@ body {
 .sheet { animation: sheet 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .tint-transition { transition: background-color 0.9s ease, border-color 0.9s ease, color 0.9s ease; }
 
+/* Greenhouse scene */
+.gh-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 7s ease-in-out infinite; }
+@keyframes gh-grow {
+  0% { opacity: 0; transform: translateY(8px) scale(0.2); }
+  55% { opacity: 1; transform: translateY(-2px) scale(1.06); }
+  100% { opacity: 1; transform: none; }
+}
+.gh-grow { transform-box: fill-box; transform-origin: 50% 100%; animation: gh-grow 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .plant-sway, .plant-settle, .rise, .sheet { animation: none !important; }
+  .plant-sway, .plant-settle, .rise, .sheet, .gh-sway, .gh-grow { animation: none !important; }
   .tint-transition { transition: none; }
 }
 

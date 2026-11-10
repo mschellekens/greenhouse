@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { BottomNav } from "@/components/Nav";
 import { TellBar } from "@/components/TellBar";
@@ -10,6 +10,8 @@ import { Mark } from "@/components/Brand";
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { ready, state } = useApp();
   const router = useRouter();
+  const path = usePathname();
+  const wide = path?.includes("/garden");
   useEffect(() => {
     if (ready && !state.settings.onboarded) router.replace("/welcome");
   }, [ready, state.settings.onboarded, router]);
@@ -20,7 +22,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </main>
     );
   return (
-    <div className="mx-auto min-h-dvh max-w-md">
+    <div className={`mx-auto min-h-dvh max-w-md ${wide ? "md:max-w-3xl" : ""}`}>
       <main className="px-4 pb-44 pt-6">{children}</main>
       <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="px-3">

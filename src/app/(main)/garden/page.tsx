@@ -1,48 +1,185 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
-import { Plant } from "@/components/Plant";
 import { HabitSummary } from "@/components/HabitDetail";
-import { ConditionLabel } from "@/components/Condition";
 import { BAND_LABEL } from "@/lib/attention";
 import { greeting } from "@/lib/format";
 import { ViewToggle } from "@/components/Nav";
+import { GreenhouseScene, sceneLayout, BAY_W, BAY_H, type Zone } from "@/components/greenhouse/Scene";
+import { collectionFor, healthFor, joinedMessage, newPlantsSince, shelfCaption, STAGE_LABEL, SPECIES_LABEL } from "@/lib/garden";
+import { scoreColor } from "@/lib/scoring";
+
+const SEEN_KEY = "greenhouse:garden-seen";
+
+function useWide() {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(min-width: 768px)");
+    const on = () => setWide(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
+function useReducedMotion() {
+  const [r, setR] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const on = () => setR(m.matches);
+    on();
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return r;
+}
 
 export default function GardenPage() {
   const app = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [banner, setBanner] = useState<string | null>(null);
+  const wide = useWide();
+  const reduced = useReducedMotion();
   const open = app.activeHabits.find((h) => h.id === openId);
+
+  const collections = useMemo(
+    () => Object.fromEntries(app.activeHabits.map((h) => [h.id, collectionFor(h, app.state.events, app.today)])),
+    [app.activeHabits, app.state.events, app.today],
+  );
+
+  const zones: Zone[] = app.activeHabits.map((h) => {
+    const c = app.conditions[h.id];
+    const col = collections[h.id];
+    return {
+      id: h.id,
+      name: h.name,
+      band: c.band,
+      color: c.band === "paused" ? "#B9BDB4" : scoreColor(c.band === "unknown" ? null : c.score),
+      health: healthFor(c.band),
+      plants: col.plants,
+      caption: shelfCaption(h, col, c.band === "paused"),
+    };
+  });
+
+  // New plants since the last visit: grow them in and say so, once.
+  const allIds = zones.flatMap((z) => z.plants.map((p) => p.id));
+  const key = allIds.join("|");
+  const checked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!app.ready || checked.current === key) return;
+    checked.current = key;
+    let seen: Set<string> | null = null;
+    try {
+      const raw = window.localStorage.getItem(SEEN_KEY);
+      if (raw) seen = new Set(JSON.parse(raw) as string[]);
+    } catch {
+      seen = null;
+    }
+    const plants = zones.flatMap((z) => z.plants);
+    const fresh = newPlantsSince(plants, seen);
+    if (fresh.length) {
+      setNewIds((prev) => new Set([...prev, ...fresh.map((p) => p.id)]));
+      setBanner(joinedMessage(fresh));
+    }
+    try {
+      window.localStorage.setItem(SEEN_KEY, JSON.stringify(allIds));
+    } catch {
+      /* storage full or blocked: the animation just shows again next time */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.ready, key]);
+
+  useEffect(() => {
+    if (!banner) return;
+    const t = setTimeout(() => setBanner(null), 7000);
+    return () => clearTimeout(t);
+  }, [banner]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenId(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  const cols = wide && zones.length > 1 ? 2 : 1;
+  const L = sceneLayout(zones.length, cols);
+  const openCol = open ? collections[open.id] : undefined;
+
   return (
     <div>
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h1 className="whitespace-nowrap font-display text-[38px] leading-[1.05] text-forest">{greeting(app.state.settings.timezone)}</h1>
-          <p className="mt-1 text-[15px] text-muted-strong">Here’s what could use your attention.</p>
+          <p className="mt-1 text-[15px] text-muted-strong">Every goal-week adds a plant to your greenhouse.</p>
         </div>
         <ViewToggle current="garden" />
       </header>
-      <div className="glasshouse -mx-4 grid grid-cols-2 gap-x-1 gap-y-2 rounded-[2rem] px-3 pb-6 pt-5">
-        {app.activeHabits.map((h) => {
+
+      {banner && (
+        <div role="status" className="rise mb-3 flex items-center gap-3 rounded-2xl bg-forest px-4 py-3 text-[14px] text-ivory shadow-lg">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden className="shrink-0">
+            <path d="M12 21c0-6 0-9-5-12 5 0 6 3 5 6 1-5 4-8 8-8-1 5-4 8-8 9" fill="none" stroke="#CCD7CC" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="flex-1">{banner}</span>
+          <button className="rounded-full px-2 py-1 text-sage-200 hover:bg-white/10" onClick={() => setBanner(null)} aria-label="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div className="relative -mx-4 overflow-hidden rounded-[2rem] md:mx-0">
+        <GreenhouseScene zones={zones} cols={cols} newIds={newIds} sway={!reduced} />
+        {zones.map((z, i) => {
+          const b = L.bays[i];
+          const h = app.activeHabits[i];
           const c = app.conditions[h.id];
           return (
-            <button key={h.id} onClick={() => setOpenId(h.id)} className="rise flex flex-col items-center rounded-3xl pb-2 transition hover:bg-white/40" aria-label={`${h.name}: ${BAND_LABEL[c.band]}. Open details`}>
-              <Plant kind={h.plant} score={c.score} band={c.band} id={h.id} size={142} />
-              <span className="mt-0.5 font-display text-[21px] leading-tight text-forest">{h.name}</span>
-              <ConditionLabel band={c.band} score={c.score} />
-            </button>
+            <button
+              key={z.id}
+              onClick={() => setOpenId(z.id)}
+              className="absolute rounded-3xl transition hover:bg-white/10 focus-visible:bg-white/15"
+              style={{ left: `${(b.x / L.W) * 100}%`, top: `${(b.y / L.H) * 100}%`, width: `${(BAY_W / L.W) * 100}%`, height: `${(BAY_H / L.H) * 100}%` }}
+              aria-label={`${h.name}: ${BAND_LABEL[c.band]}. ${z.plants.length} plants. Open details`}
+            />
           );
         })}
-        {!app.activeHabits.length && <p className="col-span-2 p-8 text-center text-sm text-muted-strong">Nothing planted yet.</p>}
+        {!zones.length && (
+          <div className="absolute inset-x-6 top-[38%] rounded-3xl bg-ivory/95 p-6 text-center shadow-sm">
+            <p className="font-display text-[24px] text-forest">An empty greenhouse</p>
+            <p className="mt-1 text-[14px] text-muted-strong">Add a habit and its shelf appears here. Your first plant arrives the first week you meet its goal.</p>
+          </div>
+        )}
       </div>
+
+      <details className="mt-4 rounded-2xl bg-stone/70 px-4 py-3 text-[14px] text-forest">
+        <summary className="cursor-pointer select-none font-medium">How your greenhouse grows</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-strong">
+          <li>Each habit has its own shelf. Every week (Monday to Sunday) you meet its goal, a new potted plant joins that shelf. This week counts as soon as you get there.</li>
+          <li>Plants grow from seedling to young, mature and flourishing as the weeks pass, faster when you keep meeting the goal.</li>
+          <li>Plants you’ve earned stay. If a habit needs attention its shelf looks a little thirsty, and it perks up again as soon as you pick it back up.</li>
+        </ul>
+      </details>
+
       {open && (
         <div className="fixed inset-0 z-40 flex items-end bg-forest/25" onClick={() => setOpenId(null)}>
           <div className="sheet pb-safe mx-auto w-full max-w-md rounded-t-[2rem] bg-ivory p-5 pb-8 shadow-2xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={open.name}>
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-forest/15" />
+            {openCol && (
+              <p className="mb-2 text-[13px] text-muted-strong">
+                {openCol.plants.length ? (
+                  <>
+                    {openCol.plants.length} plant{openCol.plants.length === 1 ? "" : "s"} on this shelf
+                    {openCol.streak > 1 ? ` · ${openCol.streak} goal-weeks in a row` : ""}
+                    {" · newest: "}
+                    {SPECIES_LABEL[openCol.plants[openCol.plants.length - 1].species]} ({STAGE_LABEL[openCol.plants[openCol.plants.length - 1].stage]})
+                  </>
+                ) : (
+                  "No plants yet. Meet this week’s goal and the first one arrives."
+                )}
+              </p>
+            )}
             <HabitSummary habit={open} onClose={() => setOpenId(null)} />
           </div>
         </div>
