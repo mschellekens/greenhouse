@@ -9,8 +9,8 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "Greenhouse",
   description: "Habits that grow like plants. Tell it what you did; it tends the rest.",
-  manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg", apple: "/icon-192.png" },
+  manifest: "/greenhouse/manifest.webmanifest",
+  icons: { icon: "/greenhouse/icon.svg", apple: "/greenhouse/icon-192.png" },
   appleWebApp: { capable: true, title: "Greenhouse", statusBarStyle: "default" },
 };
 
