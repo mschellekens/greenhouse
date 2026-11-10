@@ -1,8 +1,9 @@
 /**
- * Optional LLM parsing endpoint. Active only when OPENAI_API_KEY or
- * ANTHROPIC_API_KEY is set on the server. Without a key, GET reports
- * { available: false } and the client uses the deterministic rule parser.
- * The client validates every response and falls back to rules on failure.
+ * Optional LLM parsing endpoint, kept out of the App Router so the GitHub Pages
+ * static export can build. Restore to src/app/api/parse/route.ts when hosting
+ * on a Node server (Vercel, etc.) with OPENAI_API_KEY or ANTHROPIC_API_KEY.
+ *
+ * On the static host the client uses the built-in rule parser only.
  */
 import { NextResponse } from "next/server";
 

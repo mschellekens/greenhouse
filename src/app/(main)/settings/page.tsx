@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/lib/store";
 import { ConditionLabel } from "@/components/Condition";
@@ -26,15 +26,10 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export default function SettingsPage() {
   const app = useApp();
-  const [llm, setLlm] = useState<string>("Checking…");
   const [confirmReset, setConfirmReset] = useState(false);
   const zones = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [app.state.settings.timezone];
-  useEffect(() => {
-    fetch("/api/parse")
-      .then((r) => r.json())
-      .then((j) => setLlm(j.available ? `On (${j.provider})` : "Not configured"))
-      .catch(() => setLlm("Not configured"));
-  }, []);
+  // Static GitHub Pages host has no /api/parse, so AI parsing stays off.
+  const llm = "Not configured";
 
   function exportData() {
     const blob = new Blob([JSON.stringify(app.state, null, 2)], { type: "application/json" });
@@ -53,7 +48,7 @@ export default function SettingsPage() {
         <ul>
           {app.state.habits.map((h) => (
             <li key={h.id} className="flex items-center justify-between gap-2 border-b border-forest/5 py-2.5 last:border-0">
-              <Link href={`/habit/${h.id}`} className="min-w-0">
+              <Link href={`/habit?id=${h.id}`} className="min-w-0">
                 <div className="truncate text-[14px]">
                   {h.name}
                   {h.archivedAt && <span className="ml-1 text-[12px] text-muted-strong">(archived)</span>}

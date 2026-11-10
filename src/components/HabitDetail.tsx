@@ -63,7 +63,7 @@ export function HabitSummary({ habit, onClose }: { habit: Habit; onClose?: () =>
       </dl>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
         <QuickLog habit={habit} variant="panel" />
-        <Link href={`/habit/${habit.id}`} className="h-11 rounded-full px-4 py-3 text-[14px] text-forest underline-offset-4 hover:underline" onClick={onClose}>
+        <Link href={`/habit?id=${habit.id}`} className="h-11 rounded-full px-4 py-3 text-[14px] text-forest underline-offset-4 hover:underline" onClick={onClose}>
           Details
         </Link>
       </div>

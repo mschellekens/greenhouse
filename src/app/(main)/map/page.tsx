@@ -24,7 +24,7 @@ function Tile({ r, wide, prominent, showMove }: { r: Ranked; wide: boolean; prom
     <li className={`rise relative ${wide ? "col-span-2" : ""}`}>
       {/* The tile body is a link; the log control is a sibling, never nested inside it. */}
       <Link
-        href={`/habit/${habit.id}`}
+        href={`/habit?id=${habit.id}`}
         className="tint-transition flex h-full min-h-[132px] flex-col rounded-[1.4rem] p-4 pb-14"
         style={{ background: tint, boxShadow: prominent ? "inset 0 0 0 1px rgba(35,56,47,0.08)" : undefined }}
       >

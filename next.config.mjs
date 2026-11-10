@@ -1,3 +1,11 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = { reactStrictMode: true };
+const repo = "/greenhouse";
+const nextConfig = {
+  reactStrictMode: true,
+  output: "export",
+  trailingSlash: true,
+  basePath: repo,
+  assetPrefix: repo,
+  images: { unoptimized: true },
+};
 export default nextConfig;

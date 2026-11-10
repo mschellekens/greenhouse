@@ -2,16 +2,21 @@
 
 Habits that grow like plants. Tell it what you did in plain words; each habit's plant reflects how the last few weeks actually went. No streaks, badges or confetti.
 
-This is the first MVP build. It runs fully on one device (data in the browser) with a deterministic parser. Cloud sync, AI parsing and hosting are wired as interfaces and switch on once accounts and keys exist.
+This is the first MVP build. It runs fully on one device (data in the browser) with a deterministic parser. The app is published as a static export on GitHub Pages. Cloud sync and AI parsing stay off until a Node host and keys exist.
+
+**Live:** https://mschellekens.github.io/greenhouse/
 
 ## Run it
 
 ```bash
 npm install
-npm run dev            # http://localhost:3000
-# or production
-npm run build && npm start -- -p 3100
+npm run dev            # http://localhost:3000/greenhouse/
+npm test
+npm run build          # static export into out/
+npx --yes serve out    # local preview of the Pages build
 ```
+
+The Next config uses `output: 'export'` with `basePath` and `assetPrefix` `/greenhouse` so the same build works on GitHub Pages. There is no `next start` server. The optional LLM route lives in `src/optional-api/` and is not part of this build; the client uses the built-in rule parser only.
 
 Checks:
 
@@ -59,8 +64,9 @@ Every goal is a target over a **rolling window** (`windowDays`: 1, 7, 14, 30), w
    - `npm i @supabase/supabase-js`, implement `SupabaseAdapter` (`load`/`save`) and add sign-in (magic link or Google). Swap the adapter in `src/lib/store.tsx`. A one-time import of the local data on first sign-in is recommended.
 2. **LLM key** (better language understanding)
    - Set `OPENAI_API_KEY` (optional `OPENAI_MODEL`, default `gpt-4o-mini`) or `ANTHROPIC_API_KEY` (optional `ANTHROPIC_MODEL`) on the server. The app detects it via `GET /api/parse` and uses the LLM parser. Every LLM result is checked against real habits, future dates and numbers present in the text; anything ungrounded falls back to the rule parser.
-3. **Vercel deploy**
-   - Import the repo in Vercel (framework: Next.js, no extra config), add the env vars above, deploy. The PWA manifest and icons are in `public/`.
+3. **Node/Vercel host (optional, for AI parsing + later Supabase)**
+   - The GitHub Pages deploy is already live at the link above (static export, rule parser only).
+   - For a server host, move `src/optional-api/parse/route.ts` back to `src/app/api/parse/route.ts`, drop `output: 'export'` / `basePath` if the app is at the domain root, add the env vars, and deploy.
 
 Integrations (Apple Health, Google Health Connect, Strava, Oura) appear in onboarding step 6 and Settings as *Not available yet*. None are implemented; the schema has `integration_connections` and `events.source_event_id` (deduped) ready.
 

@@ -1,11 +1,12 @@
 "use client";
+import { Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { HabitDetail } from "@/components/HabitDetail";
 
-export default function HabitPage() {
-  const { id } = useParams<{ id: string }>();
+function HabitPageInner() {
+  const id = useSearchParams().get("id");
   const app = useApp();
   const habit = app.state.habits.find((h) => h.id === id);
   const home = `/${app.state.settings.defaultView}`;
@@ -20,5 +21,13 @@ export default function HabitPage() {
         <p className="text-[14px] text-muted-strong">This habit has been deleted.</p>
       ) : null}
     </div>
+  );
+}
+
+export default function HabitPage() {
+  return (
+    <Suspense>
+      <HabitPageInner />
+    </Suspense>
   );
 }

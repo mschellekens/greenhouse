@@ -2,14 +2,15 @@
   "name": "Greenhouse",
   "short_name": "Greenhouse",
   "description": "Habits that grow like plants.",
-  "start_url": "/",
+  "start_url": "/greenhouse/",
+  "scope": "/greenhouse/",
   "display": "standalone",
   "background_color": "#F6F1E7",
   "theme_color": "#1F3A2E",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/greenhouse/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/greenhouse/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/greenhouse/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/greenhouse/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
